@@ -100,7 +100,7 @@ export default function HomePage() {
           disabled={processing}
           className="rounded-md bg-gradient-to-b from-[#ffc633] to-amber px-4 py-2 font-bold text-[#14100a] disabled:opacity-60"
         >
-          {processing ? "Processing…" : "Process"}
+          {processing ? "Uploading..." : "Upload"}
         </button>
       </div>
 

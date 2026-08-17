@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { correctCityNames } from "./correctCityNames";
 
 declare global {
   interface Window {
@@ -33,18 +34,25 @@ export default function AudioRecorder({
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
+    recognition.maxAlternatives = 3; // gives us alternates to check against city list
 
     recognition.onresult = (event: any) => {
       let interim = "";
       let final = finalTextRef.current;
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          final += transcript;
+        const result = event.results[i];
+
+        // check all alternatives, prefer one that best matches a known city
+        const bestAlt = pickBestAlternative(result);
+
+        if (result.isFinal) {
+          final += correctCityNames(bestAlt) + " ";
         } else {
-          interim += transcript;
+          interim += bestAlt;
         }
       }
+
       finalTextRef.current = final;
       onTranscriptChange((final + interim).trim());
     };
@@ -55,6 +63,21 @@ export default function AudioRecorder({
     recognitionRef.current = recognition;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function pickBestAlternative(result: any) {
+    // among the N alternatives Chrome gives us, pick the one
+    // that's closest to a real city name if any are close
+    let best = result[0].transcript;
+    let bestScore = Infinity;
+    for (let a = 0; a < result.length; a++) {
+      const scored = correctCityNames(result[a].transcript, true);
+      if (scored.distance < bestScore) {
+        bestScore = scored.distance;
+        best = scored.text;
+      }
+    }
+    return best;
+  }
 
   function start() {
     if (!recognitionRef.current) return;
