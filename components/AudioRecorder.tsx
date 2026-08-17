@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { correctCityNames } from "./correctCityNames";
+import { correctCityNames } from "./Correctcitynames";
 
 declare global {
   interface Window {
