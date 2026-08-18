@@ -105,15 +105,12 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
         raise HTTPException(status_code=502, detail=f"Parsing failed: {e}")
 
     try:
-        known_cities = db.get_known_cities()
+        details = db.query_shipment_details(parsed["origin"], parsed["destination"])
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
 
-    origin_corrected = db.correct_city(parsed["origin"], known_cities)
-    destination_corrected = db.correct_city(parsed["destination"], known_cities)
-
-    # Case 1: couldn't confidently match one or both cities -> try state-level fallback
-    if not origin_corrected or not destination_corrected:
+    # Case 1: no exact lane match -> try state-level fallback
+    if not details:
         state_details = _state_fallback(parsed["origin"], parsed["destination"])
         return {
             "mode": "state" if state_details else "none",
@@ -121,24 +118,10 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
             "historical": state_details,
         }
 
-    try:
-        details = db.query_shipment_details(origin_corrected, destination_corrected)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
-
-    # Case 2: exact city match found in DB, but no shipments on that lane -> state fallback
-    if not details:
-        state_details = _state_fallback(origin_corrected, destination_corrected)
-        return {
-            "mode": "state" if state_details else "none",
-            "parsed": {"origin": origin_corrected, "destination": destination_corrected},
-            "historical": state_details,
-        }
-
-    # Case 3: exact lane match
+    # Case 2: exact lane match
     return {
         "mode": "exact",
-        "parsed": {"origin": origin_corrected, "destination": destination_corrected},
+        "parsed": parsed,
         "historical": details,
     }
 

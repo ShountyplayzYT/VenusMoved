@@ -1,5 +1,4 @@
 import os
-import difflib
 from contextlib import contextmanager
 
 import psycopg
@@ -59,34 +58,6 @@ def rows_to_records(rows):
             "loadType": safe_get(r, 8),
         })
     return results
-
-
-def get_known_cities():
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(f'''
-            SELECT "{COL_ORIGIN}" FROM "{TABLE_NAME}"
-            UNION
-            SELECT "{COL_DEST}" FROM "{TABLE_NAME}"
-        ''')
-        rows = cur.fetchall()
-    cities = set()
-    for r in rows:
-        val = safe_get(r, 0)
-        if val:
-            city_part = str(val).split(",")[0].strip()
-            if city_part:
-                cities.add(city_part)
-    return cities
-
-
-def correct_city(heard_name, known_cities):
-    if not heard_name:
-        return None
-    for c in known_cities:
-        if c.lower() == heard_name.lower():
-            return c
-    matches = difflib.get_close_matches(heard_name, list(known_cities), n=1, cutoff=0.4)
-    return matches[0] if matches else None
 
 
 def query_shipment_details(origin_city, destination_city):
