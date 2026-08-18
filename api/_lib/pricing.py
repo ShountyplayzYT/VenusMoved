@@ -22,10 +22,16 @@ def parse_lane_text(client, lane_text):
         f"The following text describes a shipment lane, in the format "
         f"'CityA to CityB': \"{lane_text}\". "
         "Treat the first city mentioned as the ORIGIN and the second city "
-        "mentioned as the DESTINATION. Only extract the city names exactly as "
-        "written — do NOT guess or add a state. Respond with ONLY raw JSON, no "
-        "markdown, no code fences, in this exact shape: "
-        '{"origin": "CityName", "destination": "CityName"}'
+        "mentioned as the DESTINATION. "
+        "Extract each city name exactly as written — do NOT guess or add a "
+        "state that wasn't spoken. "
+        "If a state IS spoken for a city (as a full name like \"New Jersey\" "
+        "or an abbreviation like \"NJ\"), format that city as \"City, ST\" "
+        "using the standard 2-letter USPS abbreviation (e.g. \"Sayreville, "
+        "NJ\"). If no state was spoken for a city, return just the city name "
+        "with no state and no trailing comma. "
+        "Respond with ONLY raw JSON, no markdown, no code fences, in this "
+        'exact shape: {"origin": "CityName", "destination": "CityName"}'
     )
     response = client.chat.completions.create(
         model="gpt-4o-mini",
