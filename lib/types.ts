@@ -9,6 +9,7 @@ export type ShipmentRecord = {
   carrierPay?: number | null;
   netProfit?: number | null;
   pct?: number | null;
+  loadType?: string | null;
 };
 
 export type LookupResponse = {

@@ -13,6 +13,7 @@ COL_ADDL_CHARGES = "Additional Charges"
 COL_CARRIER_PAY = "Carrier Pay"
 COL_NET_PROFIT = "Net Profit"
 COL_PCT = "%"
+COL_LOAD_TYPE = "Load Type"
 
 
 @contextmanager
@@ -55,6 +56,7 @@ def rows_to_records(rows):
             "carrierPay": to_number(safe_get(r, 5)),
             "netProfit": to_number(safe_get(r, 6)),
             "pct": to_number(safe_get(r, 7)),
+            "loadType": safe_get(r, 8),
         })
     return results
 
@@ -93,7 +95,8 @@ def query_shipment_details(origin_city, destination_city):
         query = f'''
             SELECT "{COL_ORIGIN}", "{COL_DEST}", "{COL_SHIP_DATE}",
                    "{COL_LINE_HAUL}", "{COL_ADDL_CHARGES}",
-                   "{COL_CARRIER_PAY}", "{COL_NET_PROFIT}", "{safe_pct_col}"
+                   "{COL_CARRIER_PAY}", "{COL_NET_PROFIT}", "{safe_pct_col}",
+                   "{COL_LOAD_TYPE}"
             FROM "{TABLE_NAME}"
             WHERE "{COL_ORIGIN}" ILIKE %s
               AND "{COL_DEST}" ILIKE %s
@@ -110,7 +113,8 @@ def query_state_to_state_details(origin_abbr, dest_abbr, limit=25):
         query = f'''
             SELECT "{COL_ORIGIN}", "{COL_DEST}", "{COL_SHIP_DATE}",
                    "{COL_LINE_HAUL}", "{COL_ADDL_CHARGES}",
-                   "{COL_CARRIER_PAY}", "{COL_NET_PROFIT}", "{safe_pct_col}"
+                   "{COL_CARRIER_PAY}", "{COL_NET_PROFIT}", "{safe_pct_col}",
+                   "{COL_LOAD_TYPE}"
             FROM "{TABLE_NAME}"
             WHERE "{COL_ORIGIN}" ILIKE %s
               AND "{COL_DEST}" ILIKE %s

@@ -48,6 +48,7 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
               <th className="py-1 pr-3">Origin</th>
               <th className="py-1 pr-3">Destination</th>
               <th className="py-1 pr-3">Ship Date</th>
+              <th className="py-1 pr-3">Load Type</th>
               <th className="py-1 pr-3">Line Haul</th>
               <th className="py-1 pr-3">Addl. Charges</th>
               <th className="py-1 pr-3">Carrier Pay</th>
@@ -61,6 +62,7 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
                 <td className="py-1 pr-3">{d.origin}</td>
                 <td className="py-1 pr-3">{d.destination}</td>
                 <td className="py-1 pr-3">{d.shipDate}</td>
+                <td className="py-1 pr-3">{d.loadType || "—"}</td>
                 <td className="py-1 pr-3">{money(d.lineHaul)}</td>
                 <td className="py-1 pr-3">{money(d.additionalCharges)}</td>
                 <td className="py-1 pr-3">{money(d.carrierPay)}</td>
