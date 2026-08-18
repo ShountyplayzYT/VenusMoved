@@ -96,7 +96,7 @@ export function correctCityNames(
         }
       }
 
-      const threshold = windowSize === 1 ? 0.35 : 0.45;
+      const threshold = windowSize === 1 ? 0 : 0;
       if (bestDist < threshold) {
         // check if the next word(s) look like a state, e.g. "..., Ohio" or "..., OH"
         let consumed = windowSize;
