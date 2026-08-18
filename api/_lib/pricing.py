@@ -23,7 +23,7 @@ def parse_lane_text(client, lane_text):
         f"'CityA to CityB': \"{lane_text}\". "
         "This text came from imperfect browser speech-to-text, so city names "
         "may be misheard or misspelled (e.g. \"cerebral\" instead of "
-        "\"Sayreville\", \"boston\" run into another word, etc). It is extremly possible that thw word has no match. If this is the case, think about the pronounciation, and think of cities with extremly similar pronounciation. For example, terrible to Sayreville. "
+        "\"Sayreville\", \"boston\" run into another word, etc). It is extremly possible that thw word has no match. If this is the case, think about the pronounciation, and think of cities with extremly similar pronounciation. For example, \"terrible\" to \"Sayreville.\" Be lenient, and not to strict. Translate properly please " 
         "Treat the first city mentioned as the ORIGIN and the second city "
         "mentioned as the DESTINATION. Mostly what happens, is that real words are heard. Remember. It is always a city.  "
         "Using your own knowledge of real US city names, correct each city "
