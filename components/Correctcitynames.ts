@@ -1,4 +1,5 @@
 import { US_CITIES } from "./UScities";
+import { phoneticDistance } from "./phonetic";
 
 // Parse "City, ST" entries into { city, state } once at module load.
 const PARSED_CITIES = US_CITIES.map((entry) => {
@@ -45,14 +46,36 @@ function levenshtein(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
-function normalizedDistance(a: string, b: string) {
+function spellingDistance(a: string, b: string) {
   if (!a.length || !b.length) return 1;
   return levenshtein(a.toLowerCase(), b.toLowerCase()) / Math.max(a.length, b.length);
+}
+
+// Combined score: take the BETTER of spelling-distance or phonetic-distance.
+// This is what catches cases like "Syareville" -> "Sayreville" where the
+// spelling drifted a lot but it still sounds the same.
+function combinedDistance(a: string, b: string) {
+  return Math.min(spellingDistance(a, b), phoneticDistance(a, b));
 }
 
 // Given a matched city name and (optionally) a state token spoken right
 // after it, pick the right entry when the city name is ambiguous
 // (e.g. "Cleveland" -> Cleveland, OH or Cleveland, TN).
+// Manual escape valve: pairs that phonetic matching tends to confuse but
+// that you know should NOT auto-correct into each other. Add to this as
+// you notice bad corrections in real usage — cheaper than re-tuning the
+// global threshold and risking new false positives elsewhere.
+// Format: spoken word (lowercase) -> city name it should NOT match to.
+const NEVER_MATCH: Record<string, string> = {
+  hillsborough: "Harrisburg",
+  // "sant loo ees": "Reading",  // example of another pair to exclude
+};
+
+function isExcluded(candidate: string, matchedCity: string): boolean {
+  const blocked = NEVER_MATCH[candidate.toLowerCase()];
+  return blocked !== undefined && blocked === matchedCity;
+}
+
 function resolveCity(cityName: string, spokenState?: string): string {
   const matches = PARSED_CITIES.filter((c) => c.city === cityName);
   if (matches.length === 1 || !spokenState) return matches[0].full;
@@ -78,6 +101,16 @@ export function correctCityNames(
   let totalDistance = 0;
   let i = 0;
 
+  // Common short filler/function words that should never be treated as
+  // a candidate for city matching, no matter how close the score comes out.
+  // Without this, 1-2 letter overlaps on short words ("in", "at", "is",
+  // "to") can accidentally score close to short city names.
+  const STOPWORDS = new Set([
+    "in", "at", "is", "to", "up", "on", "the", "a", "an", "of", "for",
+    "and", "or", "going", "load", "loading", "dropping", "picking",
+    "heading", "through", "that",
+  ]);
+
   while (i < words.length) {
     let matched = false;
 
@@ -86,18 +119,35 @@ export function correctCityNames(
       if (i + windowSize > words.length) continue;
       const candidate = words.slice(i, i + windowSize).join(" ");
 
+      // never treat a candidate as a city match if it contains a stopword —
+      // this blocks both single filler words ("at") and phrases where a
+      // filler word is glued to the next real word ("dropping at")
+      const candidateWords = candidate.toLowerCase().split(/\s+/);
+      if (candidateWords.some((w) => STOPWORDS.has(w))) {
+        continue;
+      }
+
       let bestCity = "";
       let bestDist = Infinity;
       for (const city of CITY_NAMES) {
-        const d = normalizedDistance(candidate, city);
+        const d = combinedDistance(candidate, city);
         if (d < bestDist) {
           bestDist = d;
           bestCity = city;
         }
       }
 
-      const threshold = windowSize === 1 ? 0.35 : 0.45;
-      if (bestDist < threshold) {
+      // phonetic matches can legitimately have a slightly higher "distance"
+      // than pure spelling matches since the key alphabet is smaller, so
+      // thresholds are a touch looser than the spelling-only version
+      const threshold = windowSize === 1 ? 0.22 : 0.35;
+
+      // guard against short words/city names producing deceptively low
+      // normalized distances (e.g. "at" vs "AL" is 1 edit on 2 chars = 0.5,
+      // but "in" vs a 3-letter city key can still slip under a loose threshold)
+      const longEnough = candidate.replace(/\s/g, "").length >= (windowSize === 1 ? 4 : 6);
+
+      if (longEnough && bestDist < threshold && !isExcluded(candidate, bestCity)) {
         // check if the next word(s) look like a state, e.g. "..., Ohio" or "..., OH"
         let consumed = windowSize;
         let spokenState: string | undefined;
