@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI, Depends, HTTPException, Response, UploadFile, File
 from openai import OpenAI
 
-from _lib import db, auth, geocode, pricing, importer
+from _lib import db, auth, geocode, pricing, importer, dat
 from _lib.models import SignupRequest, LoginRequest, LookupRequest
 
 app = FastAPI()
@@ -115,17 +115,39 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
     # Case 1: no exact lane match -> try state-level fallback
     if not details:
         state_details = _state_fallback(parsed["origin"], parsed["destination"])
+        if state_details:
+            return {
+                "mode": "state",
+                "parsed": parsed,
+                "historical": state_details,
+                "datRate": None,
+            }
+
+        # Case 2: nothing in our own history at all -> ask DAT Rateview
+        # for a market rate on this lane instead of coming back empty.
+        dat_rate = None
+        try:
+            dat_rate = dat.get_rate(
+                parsed["origin"],
+                parsed["destination"],
+                geo_lookup=geocode.get_geo_info,
+            )
+        except dat.DatApiError as e:
+            print(f"[dat] lookup skipped: {e}")
+
         return {
-            "mode": "state" if state_details else "none",
+            "mode": "dat" if dat_rate else "none",
             "parsed": parsed,
-            "historical": state_details,
+            "historical": None,
+            "datRate": dat_rate,
         }
 
-    # Case 2: exact lane match
+    # Case 3: exact lane match
     return {
         "mode": "exact",
         "parsed": parsed,
         "historical": details,
+        "datRate": None,
     }
 
 

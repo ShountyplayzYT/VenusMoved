@@ -16,7 +16,7 @@ function median(values: number[]): number | null {
 }
 
 export default function ResultsPanel({ result }: { result: LookupResponse }) {
-  const { historical } = result;
+  const { historical, mode, datRate } = result;
 
   const validRates = (historical || [])
     .map((d) => d.lineHaul)
@@ -24,6 +24,49 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
   const medianRate = median(validRates);
 
   if (!historical || historical.length === 0) {
+    if (mode === "dat" && datRate) {
+      return (
+        <div className="rounded-2xl border border-border bg-panel p-5">
+          <div className="mb-4">
+            <div className="font-mono-brand text-3xl font-bold text-teal">
+              {money(datRate.perTripRateUsd)}
+            </div>
+            <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
+              DAT Rateview Estimate (per trip) · no shipment history for this lane
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+            <div>
+              <span className="text-textSecondary">Range: </span>
+              {money(datRate.perTripLowUsd)} – {money(datRate.perTripHighUsd)}
+            </div>
+            <div>
+              <span className="text-textSecondary">Mileage: </span>
+              {datRate.mileage ?? "—"}
+            </div>
+            {datRate.perMileRateUsd != null && (
+              <div>
+                <span className="text-textSecondary">Per mile: </span>
+                {money(datRate.perMileRateUsd)}
+              </div>
+            )}
+            <div>
+              <span className="text-textSecondary">Reports: </span>
+              {datRate.reports ?? "—"}
+            </div>
+            <div>
+              <span className="text-textSecondary">Companies: </span>
+              {datRate.companies ?? "—"}
+            </div>
+            <div>
+              <span className="text-textSecondary">Rate strength: </span>
+              {datRate.rateStrength ?? "—"}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-2xl border border-border bg-panel p-5">
         <p className="text-textSecondary text-sm">No matching shipments found for this lane.</p>

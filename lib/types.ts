@@ -13,10 +13,26 @@ export type ShipmentRecord = {
   company?: string | null;
 };
 
+export type DatRate = {
+  mileage: number | null;
+  perTripRateUsd: number | null;
+  perTripLowUsd: number | null;
+  perTripHighUsd: number | null;
+  perMileRateUsd: number | null;
+  perMileLowUsd: number | null;
+  perMileHighUsd: number | null;
+  reports: number | null;
+  companies: number | null;
+  rateStrength: number | null;
+  timeframe: string | null;
+  areaType: string | null;
+};
+
 export type LookupResponse = {
-  mode: "exact" | "state" | "none";
+  mode: "exact" | "state" | "dat" | "none";
   parsed: { origin: string; destination: string };
   historical: ShipmentRecord[] | null;
+  datRate?: DatRate | null;
 };
 
 export type ImportResult = {
