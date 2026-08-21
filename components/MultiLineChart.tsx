@@ -17,21 +17,21 @@ const PALETTE = [
 
 export type ChartSeries = {
   label: string;
-  values: number[]; // must be same length as `weeks` passed to the chart
+  values: number[]; // must be same length as `months` passed to the chart
 };
 
-function formatWeekLabel(iso: string) {
+function formatMonthLabel(iso: string) {
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
 export default function MultiLineChart({
-  weeks,
+  months,
   series,
   height = 280,
 }: {
-  weeks: string[];
+  months: string[];
   series: ChartSeries[];
   height?: number;
 }) {
@@ -40,7 +40,7 @@ export default function MultiLineChart({
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
-  if (series.length === 0 || weeks.length === 0) {
+  if (series.length === 0 || months.length === 0) {
     return (
       <div
         className="flex items-center justify-center text-textSecondary text-sm"
@@ -52,7 +52,7 @@ export default function MultiLineChart({
   }
 
   const maxY = Math.max(1, ...series.flatMap((s) => s.values));
-  const stepX = weeks.length > 1 ? innerW / (weeks.length - 1) : 0;
+  const stepX = months.length > 1 ? innerW / (months.length - 1) : 0;
 
   const xFor = (i: number) => padding.left + i * stepX;
   const yFor = (v: number) => padding.top + innerH - (v / maxY) * innerH;
@@ -63,7 +63,7 @@ export default function MultiLineChart({
   );
 
   // Cap the number of x-axis labels shown so they don't overlap.
-  const labelEvery = Math.max(1, Math.ceil(weeks.length / 8));
+  const labelEvery = Math.max(1, Math.ceil(months.length / 8));
 
   return (
     <div className="w-full">
@@ -88,17 +88,17 @@ export default function MultiLineChart({
             );
           })}
 
-          {weeks.map((w, i) =>
+          {months.map((m, i) =>
             i % labelEvery === 0 ? (
               <text
-                key={w}
+                key={m}
                 x={xFor(i)}
                 y={height - padding.bottom + 16}
                 textAnchor="middle"
                 fontSize={10}
                 fill="#838a94"
               >
-                {formatWeekLabel(w)}
+                {formatMonthLabel(m)}
               </text>
             ) : null
           )}

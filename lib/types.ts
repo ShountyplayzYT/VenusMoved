@@ -26,29 +26,45 @@ export type ImportResult = {
   companies: string[];
 };
 
-export type CustomerWeeklyLoadRow = {
+export type CustomerMonthlyLoadRow = {
   company: string;
-  weekStart: string; // YYYY-MM-DD, Monday of that week
+  monthStart: string; // YYYY-MM-DD, first of that month
   loadCount: number;
 };
 
-export type CustomerWeeklyLoadsResponse = {
+export type CustomerMonthlyLoadsResponse = {
   startDate: string;
-  rows: CustomerWeeklyLoadRow[];
+  rows: CustomerMonthlyLoadRow[];
 };
 
 export type InsightsCustomersResponse = {
   customers: string[];
 };
 
-export type LaneWeeklyLoadRow = {
+export type LaneMonthlyLoadRow = {
   lane: string;
-  weekStart: string; // YYYY-MM-DD, Monday of that week
+  monthStart: string; // YYYY-MM-DD, first of that month
   loadCount: number;
 };
 
-export type LaneWeeklyLoadsResponse = {
+export type LaneMonthlyLoadsResponse = {
   startDate: string;
   company: string;
-  rows: LaneWeeklyLoadRow[];
+  rows: LaneMonthlyLoadRow[];
+};
+
+export type LaneLoadChangeRow = {
+  lane: string;
+  oldMonth: string; // YYYY-MM-DD
+  newMonth: string; // YYYY-MM-DD
+  oldCount: number;
+  newCount: number;
+  pctDecrease: number;
+};
+
+export type LaneLoadChangesResponse = {
+  startDate: string;
+  company: string;
+  threshold: number;
+  rows: LaneLoadChangeRow[];
 };

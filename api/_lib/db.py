@@ -255,52 +255,85 @@ def get_customers_with_recent_loads(start_date):
     return [r[0] for r in rows]
 
 
-def get_weekly_loads_by_customer(start_date):
-    """Weekly load counts per customer (company) since start_date.
-    Weeks are bucketed Monday-Sunday via Postgres' ISO date_trunc('week', ...)."""
+def get_monthly_loads_by_customer(start_date):
+    """Monthly load counts per customer (company) since start_date.
+    Months are bucketed calendar-month via Postgres' date_trunc('month', ...)."""
     with get_conn() as conn, conn.cursor() as cur:
         query = f'''
             SELECT "{COL_COMPANY}" AS company,
-                date_trunc('week', "{COL_SHIP_DATE}")::date AS week_start,
+                date_trunc('month', "{COL_SHIP_DATE}")::date AS month_start,
                 COUNT(*) AS load_count
             FROM "{TABLE_NAME}"
             WHERE "{COL_SHIP_DATE}" >= %s
             AND "{COL_COMPANY}" IS NOT NULL
             AND "{COL_COMPANY}" <> ''
-            GROUP BY company, week_start
-            ORDER BY company, week_start
+            GROUP BY company, month_start
+            ORDER BY company, month_start
         '''
         cur.execute(query, (start_date,))
         rows = cur.fetchall()
 
     return [
-        {"company": company, "weekStart": str(week_start), "loadCount": load_count}
-        for company, week_start, load_count in rows
+        {"company": company, "monthStart": str(month_start), "loadCount": load_count}
+        for company, month_start, load_count in rows
     ]
 
 
-def get_weekly_loads_by_lane(company, start_date):
-    """Weekly load counts per lane (Origin -> Destination) for one customer
+def get_monthly_loads_by_lane(company, start_date):
+    """Monthly load counts per lane (Origin -> Destination) for one customer
     since start_date."""
     with get_conn() as conn, conn.cursor() as cur:
         query = f'''
             SELECT "{COL_ORIGIN}" AS origin,
                 "{COL_DEST}" AS destination,
-                date_trunc('week', "{COL_SHIP_DATE}")::date AS week_start,
+                date_trunc('month', "{COL_SHIP_DATE}")::date AS month_start,
                 COUNT(*) AS load_count
             FROM "{TABLE_NAME}"
             WHERE "{COL_SHIP_DATE}" >= %s
             AND "{COL_COMPANY}" = %s
-            GROUP BY origin, destination, week_start
-            ORDER BY origin, destination, week_start
+            GROUP BY origin, destination, month_start
+            ORDER BY origin, destination, month_start
         '''
         cur.execute(query, (start_date, company))
         rows = cur.fetchall()
 
     results = []
-    for origin, destination, week_start, load_count in rows:
+    for origin, destination, month_start, load_count in rows:
         lane = f"{origin or 'Unknown'} → {destination or 'Unknown'}"
-        results.append({"lane": lane, "weekStart": str(week_start), "loadCount": load_count})
+        results.append({"lane": lane, "monthStart": str(month_start), "loadCount": load_count})
+    return results
+
+
+def get_lane_load_changes(company, start_date):
+    """Month-over-month percent change in load count per lane for one
+    customer since start_date. Returns only pairs of consecutive months
+    that both have data for a given lane (i.e. no manufactured zero months).
+    Percent decrease is (old - new) / old * 100, so a positive value means
+    the lane dropped and a negative value means it grew.
+    """
+    monthly = get_monthly_loads_by_lane(company, start_date)
+
+    by_lane = {}
+    for row in monthly:
+        by_lane.setdefault(row["lane"], []).append((row["monthStart"], row["loadCount"]))
+
+    results = []
+    for lane, points in by_lane.items():
+        points.sort(key=lambda p: p[0])
+        for (old_month, old_count), (new_month, new_count) in zip(points, points[1:]):
+            if old_count <= 0:
+                continue
+            pct_decrease = (old_count - new_count) / old_count * 100
+            results.append({
+                "lane": lane,
+                "oldMonth": old_month,
+                "newMonth": new_month,
+                "oldCount": old_count,
+                "newCount": new_count,
+                "pctDecrease": round(pct_decrease, 1),
+            })
+
+    results.sort(key=lambda r: r["pctDecrease"], reverse=True)
     return results
 
 

@@ -1,8 +1,9 @@
 import type {
-  CustomerWeeklyLoadsResponse,
+  CustomerMonthlyLoadsResponse,
   ImportResult,
   InsightsCustomersResponse,
-  LaneWeeklyLoadsResponse,
+  LaneLoadChangesResponse,
+  LaneMonthlyLoadsResponse,
   LookupResponse,
   User,
 } from "./types";
@@ -61,9 +62,9 @@ export async function lookup(laneText: string): Promise<LookupResponse> {
   return handle<LookupResponse>(res);
 }
 
-export async function getCustomerWeeklyLoads(): Promise<CustomerWeeklyLoadsResponse> {
+export async function getCustomerMonthlyLoads(): Promise<CustomerMonthlyLoadsResponse> {
   const res = await fetch("/api/insights/customer-loads", { credentials: "same-origin" });
-  return handle<CustomerWeeklyLoadsResponse>(res);
+  return handle<CustomerMonthlyLoadsResponse>(res);
 }
 
 export async function getInsightsCustomers(): Promise<InsightsCustomersResponse> {
@@ -71,11 +72,22 @@ export async function getInsightsCustomers(): Promise<InsightsCustomersResponse>
   return handle<InsightsCustomersResponse>(res);
 }
 
-export async function getCustomerLaneWeeklyLoads(company: string): Promise<LaneWeeklyLoadsResponse> {
+export async function getCustomerLaneMonthlyLoads(company: string): Promise<LaneMonthlyLoadsResponse> {
   const res = await fetch(`/api/insights/customer-lanes?company=${encodeURIComponent(company)}`, {
     credentials: "same-origin",
   });
-  return handle<LaneWeeklyLoadsResponse>(res);
+  return handle<LaneMonthlyLoadsResponse>(res);
+}
+
+export async function getLaneLoadChanges(
+  company: string,
+  threshold: number
+): Promise<LaneLoadChangesResponse> {
+  const res = await fetch(
+    `/api/insights/customer-lane-changes?company=${encodeURIComponent(company)}&threshold=${threshold}`,
+    { credentials: "same-origin" }
+  );
+  return handle<LaneLoadChangesResponse>(res);
 }
 
 export async function importReport(file: File): Promise<ImportResult> {

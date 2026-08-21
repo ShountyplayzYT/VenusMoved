@@ -3,6 +3,8 @@ import sys
 import traceback
 from datetime import date, timedelta
 
+from dateutil.relativedelta import relativedelta
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, Depends, HTTPException, Response, UploadFile, File
@@ -161,14 +163,20 @@ async def import_report(file: UploadFile = File(...), user=Depends(auth.get_curr
 
 # -------------------------------------------------------------- insights ----
 
-INSIGHTS_WEEKS_BACK = 26  # ~6 months
+INSIGHTS_MONTHS_BACK = 6
+
+
+def _insights_start_date() -> date:
+    # relativedelta does proper calendar-month math (unlike timedelta,
+    # which has no notion of a "month").
+    return date.today() - relativedelta(months=INSIGHTS_MONTHS_BACK)
 
 
 @app.get("/api/insights/customer-loads")
 def insights_customer_loads(user=Depends(auth.get_current_user)):
-    start_date = date.today() - timedelta(weeks=INSIGHTS_WEEKS_BACK)
+    start_date = _insights_start_date()
     try:
-        rows = db.get_weekly_loads_by_customer(start_date)
+        rows = db.get_monthly_loads_by_customer(start_date)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
     return {"startDate": str(start_date), "rows": rows}
@@ -176,7 +184,7 @@ def insights_customer_loads(user=Depends(auth.get_current_user)):
 
 @app.get("/api/insights/customers")
 def insights_customers(user=Depends(auth.get_current_user)):
-    start_date = date.today() - timedelta(weeks=INSIGHTS_WEEKS_BACK)
+    start_date = _insights_start_date()
     try:
         customers = db.get_customers_with_recent_loads(start_date)
     except Exception as e:
@@ -188,12 +196,27 @@ def insights_customers(user=Depends(auth.get_current_user)):
 def insights_customer_lanes(company: str, user=Depends(auth.get_current_user)):
     if not company.strip():
         raise HTTPException(status_code=400, detail="A customer must be selected.")
-    start_date = date.today() - timedelta(weeks=INSIGHTS_WEEKS_BACK)
+    start_date = _insights_start_date()
     try:
-        rows = db.get_weekly_loads_by_lane(company, start_date)
+        rows = db.get_monthly_loads_by_lane(company, start_date)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
     return {"startDate": str(start_date), "company": company, "rows": rows}
+
+
+@app.get("/api/insights/customer-lane-changes")
+def insights_customer_lane_changes(
+    company: str, threshold: float = 20, user=Depends(auth.get_current_user)
+):
+    if not company.strip():
+        raise HTTPException(status_code=400, detail="A customer must be selected.")
+    start_date = _insights_start_date()
+    try:
+        rows = db.get_lane_load_changes(company, start_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+    filtered = [r for r in rows if r["pctDecrease"] >= threshold]
+    return {"startDate": str(start_date), "company": company, "threshold": threshold, "rows": filtered}
 
 
 @app.exception_handler(Exception)

@@ -2,31 +2,26 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  getCustomerLaneWeeklyLoads,
-  getCustomerWeeklyLoads,
+  getCustomerLaneMonthlyLoads,
+  getCustomerMonthlyLoads,
   getInsightsCustomers,
 } from "@/lib/api";
 import MultiLineChart, { ChartSeries } from "./MultiLineChart";
+import LaneDecreasePanel from "./Lanedecreasepanel";
 
-const WEEKS_BACK = 26; // ~6 months
+const MONTHS_BACK = 6;
 
-function mondayOf(d: Date): Date {
-  const day = d.getDay(); // 0 = Sunday ... 6 = Saturday
-  const diff = (day === 0 ? -6 : 1) - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
+function firstOfMonth(d: Date): Date {
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  start.setHours(0, 0, 0, 0);
+  return start;
 }
 
-// Builds the last WEEKS_BACK Monday-aligned week-start dates (ascending),
-// matching the Monday-Sunday buckets the backend computes with
-// Postgres' date_trunc('week', ...).
 // Formats a Date as a plain YYYY-MM-DD string using its LOCAL calendar
 // fields. We deliberately avoid `toISOString()` here: it converts to UTC
 // first, which shifts the date backwards by one day in timezones ahead of
 // UTC (e.g. IST) and breaks the match against the backend's naive SQL
-// `date` values (date_trunc('week', ship_date)::date has no timezone).
+// `date` values (date_trunc('month', ship_date)::date has no timezone).
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -34,18 +29,17 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// Builds the last WEEKS_BACK Monday-aligned week-start dates (ascending),
-// matching the Monday-Sunday buckets the backend computes with
-// Postgres' date_trunc('week', ...).
-function buildWeekGrid(weeksBack: number): string[] {
-  const thisMonday = mondayOf(new Date());
-  const weeks: string[] = [];
-  for (let i = weeksBack - 1; i >= 0; i--) {
-    const d = new Date(thisMonday);
-    d.setDate(thisMonday.getDate() - i * 7);
-    weeks.push(toDateKey(d));
+// Builds the last MONTHS_BACK first-of-month dates (ascending), matching
+// the calendar-month buckets the backend computes with Postgres'
+// date_trunc('month', ...).
+function buildMonthGrid(monthsBack: number): string[] {
+  const thisMonthStart = firstOfMonth(new Date());
+  const months: string[] = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - i, 1);
+    months.push(toDateKey(d));
   }
-  return weeks;
+  return months;
 }
 
 function seriesTotal(s: ChartSeries) {
@@ -53,24 +47,24 @@ function seriesTotal(s: ChartSeries) {
 }
 
 function toSeries(
-  weeks: string[],
-  rows: { key: string; weekStart: string; loadCount: number }[]
+  months: string[],
+  rows: { key: string; monthStart: string; loadCount: number }[]
 ): ChartSeries[] {
   const byKey = new Map<string, Map<string, number>>();
   for (const row of rows) {
     if (!byKey.has(row.key)) byKey.set(row.key, new Map());
-    byKey.get(row.key)!.set(row.weekStart, row.loadCount);
+    byKey.get(row.key)!.set(row.monthStart, row.loadCount);
   }
-  const series = Array.from(byKey.entries()).map(([key, wk]) => ({
+  const series = Array.from(byKey.entries()).map(([key, mk]) => ({
     label: key,
-    values: weeks.map((w) => wk.get(w) ?? 0),
+    values: months.map((m) => mk.get(m) ?? 0),
   }));
   series.sort((a, b) => seriesTotal(b) - seriesTotal(a));
   return series;
 }
 
 export default function InsightsPanel() {
-  const weeks = useMemo(() => buildWeekGrid(WEEKS_BACK), []);
+  const months = useMemo(() => buildMonthGrid(MONTHS_BACK), []);
 
   const [customerLoading, setCustomerLoading] = useState(true);
   const [customerError, setCustomerError] = useState<string | null>(null);
@@ -86,14 +80,14 @@ export default function InsightsPanel() {
   useEffect(() => {
     setCustomerLoading(true);
     setCustomerError(null);
-    getCustomerWeeklyLoads()
+    getCustomerMonthlyLoads()
       .then((res) => {
         const rows = res.rows.map((r) => ({
           key: r.company,
-          weekStart: r.weekStart,
+          monthStart: r.monthStart,
           loadCount: r.loadCount,
         }));
-        setCustomerSeries(toSeries(weeks, rows));
+        setCustomerSeries(toSeries(months, rows));
       })
       .catch((e: any) => setCustomerError(e.message || "Couldn't load customer insights"))
       .finally(() => setCustomerLoading(false));
@@ -106,24 +100,24 @@ export default function InsightsPanel() {
       .catch(() => {
         /* dropdown just stays empty; the chart above still works */
       });
-  }, [weeks]);
+  }, [months]);
 
   useEffect(() => {
     if (!selectedCustomer) return;
     setLaneLoading(true);
     setLaneError(null);
-    getCustomerLaneWeeklyLoads(selectedCustomer)
+    getCustomerLaneMonthlyLoads(selectedCustomer)
       .then((res) => {
         const rows = res.rows.map((r) => ({
           key: r.lane,
-          weekStart: r.weekStart,
+          monthStart: r.monthStart,
           loadCount: r.loadCount,
         }));
-        setLaneSeries(toSeries(weeks, rows));
+        setLaneSeries(toSeries(months, rows));
       })
       .catch((e: any) => setLaneError(e.message || "Couldn't load lane insights"))
       .finally(() => setLaneLoading(false));
-  }, [selectedCustomer, weeks]);
+  }, [selectedCustomer, months]);
 
   return (
     <div className="space-y-8">
@@ -131,14 +125,14 @@ export default function InsightsPanel() {
         <div className="mb-4">
           <h2 className="font-display text-lg text-textPrimary">Loads by Customer</h2>
           <p className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-            Weekly load count · last 6 months
+            Monthly load count · last 6 months
           </p>
         </div>
         {customerError && <div className="badge badge-unavailable mb-3">{customerError}</div>}
         {customerLoading ? (
           <div className="text-textSecondary text-sm py-10 text-center">Loading…</div>
         ) : (
-          <MultiLineChart weeks={weeks} series={customerSeries} />
+          <MultiLineChart months={months} series={customerSeries} />
         )}
       </div>
 
@@ -147,7 +141,7 @@ export default function InsightsPanel() {
           <div>
             <h2 className="font-display text-lg text-textPrimary">Loads by Lane</h2>
             <p className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-              Weekly load count per lane · last 6 months
+              Monthly load count per lane · last 6 months
             </p>
           </div>
           <select
@@ -171,9 +165,11 @@ export default function InsightsPanel() {
         ) : laneLoading ? (
           <div className="text-textSecondary text-sm py-10 text-center">Loading…</div>
         ) : (
-          <MultiLineChart weeks={weeks} series={laneSeries} />
+          <MultiLineChart months={months} series={laneSeries} />
         )}
       </div>
+
+      <LaneDecreasePanel company={selectedCustomer} />
     </div>
   );
 }
