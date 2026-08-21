@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getMe, logout, lookup } from "@/lib/api";
 import type { LookupResponse, User } from "@/lib/types";
 import AudioRecorder from "@/components/AudioRecorder";
@@ -75,7 +76,13 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex justify-end mb-6">
+      <div className="flex justify-end items-center gap-3 mb-6">
+        <Link
+          href="/import"
+          className="rounded-md border border-borderBright bg-panel2 px-3 py-1.5 text-xs text-textSecondary"
+        >
+          Import Report
+        </Link>
         <button
           onClick={handleLogout}
           className="rounded-md border border-borderBright bg-panel2 px-3 py-1.5 text-xs text-textSecondary"

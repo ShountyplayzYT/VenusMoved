@@ -47,6 +47,7 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
             <tr className="text-left text-textSecondary text-xs uppercase">
               <th className="py-1 pr-3">Origin</th>
               <th className="py-1 pr-3">Destination</th>
+              <th className="py-1 pr-3">Company</th>
               <th className="py-1 pr-3">Ship Date</th>
               <th className="py-1 pr-3">Load Type</th>
               <th className="py-1 pr-3">Line Haul</th>
@@ -61,6 +62,7 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
               <tr key={i} className="border-t border-border">
                 <td className="py-1 pr-3">{d.origin}</td>
                 <td className="py-1 pr-3">{d.destination}</td>
+                <td className="py-1 pr-3">{d.company || "—"}</td>
                 <td className="py-1 pr-3">{d.shipDate}</td>
                 <td className="py-1 pr-3">{d.loadType || "—"}</td>
                 <td className="py-1 pr-3">{money(d.lineHaul)}</td>

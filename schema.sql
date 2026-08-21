@@ -26,3 +26,20 @@ CREATE TABLE IF NOT EXISTS distance_cache (
     hours      DOUBLE PRECISION,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Adds the "Company" column to the existing shipmentsdb table (the customer
+-- name each load belongs to, taken from the report's company section
+-- headers) and makes sure "Load #" is unique so the /api/import endpoint
+-- can detect which loads are already in Neon. Safe to re-run.
+
+ALTER TABLE shipmentsdb ADD COLUMN IF NOT EXISTS "Company" TEXT;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'shipmentsdb_load_unique'
+    ) THEN
+        ALTER TABLE shipmentsdb
+        ADD CONSTRAINT shipmentsdb_load_unique UNIQUE ("Load #");
+    END IF;
+END $$;

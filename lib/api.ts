@@ -1,4 +1,4 @@
-import type { LookupResponse, User } from "./types";
+import type { ImportResult, LookupResponse, User } from "./types";
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -52,4 +52,15 @@ export async function lookup(laneText: string): Promise<LookupResponse> {
     body: JSON.stringify({ laneText }),
   });
   return handle<LookupResponse>(res);
+}
+
+export async function importReport(file: File): Promise<ImportResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/api/import", {
+    method: "POST",
+    credentials: "same-origin",
+    body: formData,
+  });
+  return handle<ImportResult>(res);
 }

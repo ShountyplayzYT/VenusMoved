@@ -4,10 +4,10 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, Depends, HTTPException, Response
+from fastapi import FastAPI, Depends, HTTPException, Response, UploadFile, File
 from openai import OpenAI
 
-from _lib import db, auth, geocode, pricing
+from _lib import db, auth, geocode, pricing, importer
 from _lib.models import SignupRequest, LoginRequest, LookupRequest
 
 app = FastAPI()
@@ -123,6 +123,38 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
         "mode": "exact",
         "parsed": parsed,
         "historical": details,
+    }
+
+
+# --------------------------------------------------------------- import ----
+
+@app.post("/api/import")
+async def import_report(file: UploadFile = File(...), user=Depends(auth.get_current_user)):
+    if not file.filename.lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="Please upload the raw .xlsx report.")
+
+    file_bytes = await file.read()
+
+    try:
+        records = importer.parse_raw_workbook(file_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Couldn't read that file: {e}")
+
+    if not records:
+        raise HTTPException(status_code=400, detail="No load rows found in that file.")
+
+    try:
+        inserted, matched_existing = db.insert_new_shipment_records(records)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database import error: {e}")
+
+    companies = sorted({r["Company"] for r in records if r.get("Company")})
+
+    return {
+        "parsed": len(records),
+        "inserted": inserted,
+        "alreadyInDb": matched_existing,
+        "companies": companies,
     }
 
 

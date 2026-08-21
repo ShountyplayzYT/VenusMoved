@@ -2,6 +2,7 @@ import os
 from contextlib import contextmanager
 
 import psycopg
+from psycopg import sql
 
 TABLE_NAME = "shipmentsdb"
 COL_ORIGIN = "Origin"
@@ -13,6 +14,8 @@ COL_CARRIER_PAY = "Carrier Pay"
 COL_NET_PROFIT = "Net Profit"
 COL_PCT = "%"
 COL_LOAD_TYPE = "Load Type"
+COL_LOAD_NUM = "Load #"
+COL_COMPANY = "Company"
 
 
 @contextmanager
@@ -56,6 +59,7 @@ def rows_to_records(rows):
             "netProfit": to_number(safe_get(r, 6)),
             "pct": to_number(safe_get(r, 7)),
             "loadType": safe_get(r, 8),
+            "company": safe_get(r, 9),
         })
     return results
 
@@ -67,7 +71,7 @@ def query_shipment_details(origin_city, destination_city):
             SELECT "{COL_ORIGIN}", "{COL_DEST}", "{COL_SHIP_DATE}",
                    "{COL_LINE_HAUL}", "{COL_ADDL_CHARGES}",
                    "{COL_CARRIER_PAY}", "{COL_NET_PROFIT}", "{safe_pct_col}",
-                   "{COL_LOAD_TYPE}"
+                   "{COL_LOAD_TYPE}", "{COL_COMPANY}"
             FROM "{TABLE_NAME}"
             WHERE "{COL_ORIGIN}" ILIKE %s
               AND "{COL_DEST}" ILIKE %s
@@ -85,7 +89,7 @@ def query_state_to_state_details(origin_abbr, dest_abbr, limit=25):
             SELECT "{COL_ORIGIN}", "{COL_DEST}", "{COL_SHIP_DATE}",
                    "{COL_LINE_HAUL}", "{COL_ADDL_CHARGES}",
                    "{COL_CARRIER_PAY}", "{COL_NET_PROFIT}", "{safe_pct_col}",
-                   "{COL_LOAD_TYPE}"
+                   "{COL_LOAD_TYPE}", "{COL_COMPANY}"
             FROM "{TABLE_NAME}"
             WHERE "{COL_ORIGIN}" ILIKE %s
               AND "{COL_DEST}" ILIKE %s
@@ -117,6 +121,75 @@ def get_comparable_loads(origin_city, destination_city, limit=5):
             "lineHaul": to_number(safe_get(r, 3)),
         })
     return results
+
+
+# ---------- raw report import ----------
+
+def ensure_import_schema():
+    """Makes sure the "Company" column and the Load # uniqueness
+    constraint exist, so imports can be re-run safely."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(f'ALTER TABLE "{TABLE_NAME}" ADD COLUMN IF NOT EXISTS "{COL_COMPANY}" TEXT;')
+        cur.execute(f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'shipmentsdb_load_unique'
+                ) THEN
+                    ALTER TABLE "{TABLE_NAME}"
+                    ADD CONSTRAINT shipmentsdb_load_unique UNIQUE ("{COL_LOAD_NUM}");
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+
+
+def insert_new_shipment_records(records):
+    """
+    Inserts load records whose "Load #" isn't already in shipmentsdb.
+    For a "Load #" that already exists, the row is left alone EXCEPT its
+    "Company" is backfilled if it's currently empty (existing data is
+    never overwritten otherwise). `records` is a list of dicts keyed by
+    db column name (as produced by importer.parse_raw_workbook).
+    Returns (inserted_count, matched_existing_count).
+    """
+    if not records:
+        return 0, 0
+
+    ensure_import_schema()
+
+    col_names = list(records[0].keys())
+    table = sql.Identifier(TABLE_NAME)
+    company_col = sql.Identifier(COL_COMPANY)
+
+    insert_query = sql.SQL(
+        'INSERT INTO {table} ({cols}) VALUES ({vals}) '
+        'ON CONFLICT ({key}) DO UPDATE SET {company} = COALESCE({table}.{company}, EXCLUDED.{company}) '
+        'RETURNING (xmax = 0) AS is_new'
+    ).format(
+        table=table,
+        cols=sql.SQL(", ").join(sql.Identifier(c) for c in col_names),
+        vals=sql.SQL(", ").join(sql.Placeholder() for _ in col_names),
+        key=sql.Identifier(COL_LOAD_NUM),
+        company=company_col,
+    )
+
+    inserted = 0
+    matched_existing = 0
+    with get_conn() as conn, conn.cursor() as cur:
+        for r in records:
+            row = tuple(r.get(c) for c in col_names)
+            cur.execute(insert_query, row)
+            result = cur.fetchone()
+            if result is None:
+                continue
+            if result[0]:
+                inserted += 1
+            else:
+                matched_existing += 1
+        conn.commit()
+
+    return inserted, matched_existing
 
 
 # ---------- users ----------
