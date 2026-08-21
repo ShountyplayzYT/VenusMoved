@@ -2,7 +2,6 @@ import os
 from contextlib import contextmanager
 
 import psycopg
-from psycopg import sql
 
 TABLE_NAME = "shipmentsdb"
 COL_ORIGIN = "Origin"
@@ -159,27 +158,32 @@ def insert_new_shipment_records(records):
     ensure_import_schema()
 
     col_names = list(records[0].keys())
-    table = sql.Identifier(TABLE_NAME)
-    company_col = sql.Identifier(COL_COMPANY)
 
-    insert_query = sql.SQL(
-        'INSERT INTO {table} ({cols}) VALUES ({vals}) '
-        'ON CONFLICT ({key}) DO UPDATE SET {company} = COALESCE({table}.{company}, EXCLUDED.{company}) '
-        'RETURNING (xmax = 0) AS is_new'
-    ).format(
-        table=table,
-        cols=sql.SQL(", ").join(sql.Identifier(c) for c in col_names),
-        vals=sql.SQL(", ").join(sql.Placeholder() for _ in col_names),
-        key=sql.Identifier(COL_LOAD_NUM),
-        company=company_col,
-    )
+    def esc(name):
+        # the "%" column would otherwise be mistaken for a query
+        # placeholder once it's embedded in the raw SQL text
+        return name.replace("%", "%%")
+
+    table_q = f'"{TABLE_NAME}"'
+    company_q = f'"{esc(COL_COMPANY)}"'
+    key_q = f'"{esc(COL_LOAD_NUM)}"'
+    cols_q = ", ".join(f'"{esc(c)}"' for c in col_names)
+    placeholders = ", ".join(["%s"] * len(col_names))
+
+    insert_sql = f'''
+        INSERT INTO {table_q} ({cols_q})
+        VALUES ({placeholders})
+        ON CONFLICT ({key_q}) DO UPDATE SET
+            {company_q} = COALESCE({table_q}.{company_q}, EXCLUDED.{company_q})
+        RETURNING (xmax = 0) AS is_new
+    '''
 
     inserted = 0
     matched_existing = 0
     with get_conn() as conn, conn.cursor() as cur:
         for r in records:
             row = tuple(r.get(c) for c in col_names)
-            cur.execute(insert_query, row)
+            cur.execute(insert_sql, row)
             result = cur.fetchone()
             if result is None:
                 continue
