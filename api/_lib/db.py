@@ -240,6 +240,73 @@ def insert_new_shipment_records(records):
     return inserted, matched_existing
 
 
+def get_customers_with_recent_loads(start_date):
+    with get_conn() as conn, conn.cursor() as cur:
+        query = f'''
+            SELECT DISTINCT "{COL_COMPANY}"
+            FROM "{TABLE_NAME}"
+            WHERE "{COL_SHIP_DATE}" ~ '^\\d{{4}}-\\d{{2}}-\\d{{2}}'
+              AND LEFT("{COL_SHIP_DATE}", 10)::date >= %s
+              AND "{COL_COMPANY}" IS NOT NULL
+              AND "{COL_COMPANY}" <> ''
+            ORDER BY 1
+        '''
+        cur.execute(query, (start_date,))
+        rows = cur.fetchall()
+    return [r[0] for r in rows]
+
+
+def get_weekly_loads_by_customer(start_date):
+    """Weekly load counts per customer (company) since start_date.
+    Weeks are bucketed Monday-Sunday via Postgres' ISO date_trunc('week', ...)."""
+    with get_conn() as conn, conn.cursor() as cur:
+        query = f'''
+            SELECT "{COL_COMPANY}" AS company,
+                   date_trunc('week', LEFT("{COL_SHIP_DATE}", 10)::date)::date AS week_start,
+                   COUNT(*) AS load_count
+            FROM "{TABLE_NAME}"
+            WHERE "{COL_SHIP_DATE}" ~ '^\\d{{4}}-\\d{{2}}-\\d{{2}}'
+              AND LEFT("{COL_SHIP_DATE}", 10)::date >= %s
+              AND "{COL_COMPANY}" IS NOT NULL
+              AND "{COL_COMPANY}" <> ''
+            GROUP BY company, week_start
+            ORDER BY company, week_start
+        '''
+        cur.execute(query, (start_date,))
+        rows = cur.fetchall()
+
+    return [
+        {"company": company, "weekStart": str(week_start), "loadCount": load_count}
+        for company, week_start, load_count in rows
+    ]
+
+
+def get_weekly_loads_by_lane(company, start_date):
+    """Weekly load counts per lane (Origin -> Destination) for one customer
+    since start_date."""
+    with get_conn() as conn, conn.cursor() as cur:
+        query = f'''
+            SELECT "{COL_ORIGIN}" AS origin,
+                   "{COL_DEST}" AS destination,
+                   date_trunc('week', LEFT("{COL_SHIP_DATE}", 10)::date)::date AS week_start,
+                   COUNT(*) AS load_count
+            FROM "{TABLE_NAME}"
+            WHERE "{COL_SHIP_DATE}" ~ '^\\d{{4}}-\\d{{2}}-\\d{{2}}'
+              AND LEFT("{COL_SHIP_DATE}", 10)::date >= %s
+              AND "{COL_COMPANY}" = %s
+            GROUP BY origin, destination, week_start
+            ORDER BY origin, destination, week_start
+        '''
+        cur.execute(query, (start_date, company))
+        rows = cur.fetchall()
+
+    results = []
+    for origin, destination, week_start, load_count in rows:
+        lane = f"{origin or 'Unknown'} → {destination or 'Unknown'}"
+        results.append({"lane": lane, "weekStart": str(week_start), "loadCount": load_count})
+    return results
+
+
 def get_user_by_email(email):
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(

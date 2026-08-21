@@ -7,11 +7,15 @@ import { getMe, logout, lookup } from "@/lib/api";
 import type { LookupResponse, User } from "@/lib/types";
 import AudioRecorder from "@/components/AudioRecorder";
 import ResultsPanel from "@/components/ResultsPanel";
+import InsightsPanel from "@/components/InsightsPanel";
+
+type Tab = "lookup" | "insights";
 
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("lookup");
 
   const [laneText, setLaneText] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -76,44 +80,71 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex justify-end items-center gap-3 mb-6">
-        <Link
-          href="/import"
-          className="rounded-md border border-borderBright bg-panel2 px-3 py-1.5 text-xs text-textSecondary"
-        >
-          Import Report
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="rounded-md border border-borderBright bg-panel2 px-3 py-1.5 text-xs text-textSecondary"
-        >
-          Log out
-        </button>
+      <div className="flex justify-between items-center gap-3 mb-6">
+        <div className="flex gap-1 rounded-md border border-borderBright bg-panel2 p-1">
+          <button
+            onClick={() => setTab("lookup")}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === "lookup" ? "bg-panel3 text-textPrimary" : "text-textSecondary"
+            }`}
+          >
+            Lookup
+          </button>
+          <button
+            onClick={() => setTab("insights")}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === "insights" ? "bg-panel3 text-textPrimary" : "text-textSecondary"
+            }`}
+          >
+            Insights
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/import"
+            className="rounded-md border border-borderBright bg-panel2 px-3 py-1.5 text-xs text-textSecondary"
+          >
+            Import Report
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="rounded-md border border-borderBright bg-panel2 px-3 py-1.5 text-xs text-textSecondary"
+          >
+            Log out
+          </button>
+        </div>
       </div>
 
-      <div className="flex justify-center mb-6">
-        <AudioRecorder onTranscriptChange={setLaneText} />
-      </div>
+      {tab === "lookup" ? (
+        <>
+          <div className="flex justify-center mb-6">
+            <AudioRecorder onTranscriptChange={setLaneText} />
+          </div>
 
-      <div className="mb-6">
-        <input
-          value={laneText}
-          onChange={(e) => setLaneText(e.target.value)}
-          placeholder="Type or say a lane, e.g. Sayreville to Boston"
-          className="w-full rounded-md border border-borderBright bg-panel2 px-3 py-2 text-textPrimary outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 mb-3"
-        />
-        <button
-          onClick={handleProcess}
-          disabled={processing}
-          className="rounded-md bg-gradient-to-b from-[#ffc633] to-amber px-4 py-2 font-bold text-[#14100a] disabled:opacity-60"
-        >
-          {processing ? "Uploading..." : "Upload"}
-        </button>
-      </div>
+          <div className="mb-6">
+            <input
+              value={laneText}
+              onChange={(e) => setLaneText(e.target.value)}
+              placeholder="Type or say a lane, e.g. Sayreville to Boston"
+              className="w-full rounded-md border border-borderBright bg-panel2 px-3 py-2 text-textPrimary outline-none focus:border-teal focus:ring-2 focus:ring-teal/20 mb-3"
+            />
+            <button
+              onClick={handleProcess}
+              disabled={processing}
+              className="rounded-md bg-gradient-to-b from-[#ffc633] to-amber px-4 py-2 font-bold text-[#14100a] disabled:opacity-60"
+            >
+              {processing ? "Uploading..." : "Upload"}
+            </button>
+          </div>
 
-      {error && <div className="badge badge-unavailable mb-6">{error}</div>}
+          {error && <div className="badge badge-unavailable mb-6">{error}</div>}
 
-      {result && <ResultsPanel result={result} />}
+          {result && <ResultsPanel result={result} />}
+        </>
+      ) : (
+        <InsightsPanel />
+      )}
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -156,6 +157,43 @@ async def import_report(file: UploadFile = File(...), user=Depends(auth.get_curr
         "alreadyInDb": matched_existing,
         "companies": companies,
     }
+
+
+# -------------------------------------------------------------- insights ----
+
+INSIGHTS_WEEKS_BACK = 26  # ~6 months
+
+
+@app.get("/api/insights/customer-loads")
+def insights_customer_loads(user=Depends(auth.get_current_user)):
+    start_date = date.today() - timedelta(weeks=INSIGHTS_WEEKS_BACK)
+    try:
+        rows = db.get_weekly_loads_by_customer(start_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+    return {"startDate": str(start_date), "rows": rows}
+
+
+@app.get("/api/insights/customers")
+def insights_customers(user=Depends(auth.get_current_user)):
+    start_date = date.today() - timedelta(weeks=INSIGHTS_WEEKS_BACK)
+    try:
+        customers = db.get_customers_with_recent_loads(start_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+    return {"customers": customers}
+
+
+@app.get("/api/insights/customer-lanes")
+def insights_customer_lanes(company: str, user=Depends(auth.get_current_user)):
+    if not company.strip():
+        raise HTTPException(status_code=400, detail="A customer must be selected.")
+    start_date = date.today() - timedelta(weeks=INSIGHTS_WEEKS_BACK)
+    try:
+        rows = db.get_weekly_loads_by_lane(company, start_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+    return {"startDate": str(start_date), "company": company, "rows": rows}
 
 
 @app.exception_handler(Exception)

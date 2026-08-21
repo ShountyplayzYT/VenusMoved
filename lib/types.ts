@@ -25,3 +25,30 @@ export type ImportResult = {
   alreadyInDb: number;
   companies: string[];
 };
+
+export type CustomerWeeklyLoadRow = {
+  company: string;
+  weekStart: string; // YYYY-MM-DD, Monday of that week
+  loadCount: number;
+};
+
+export type CustomerWeeklyLoadsResponse = {
+  startDate: string;
+  rows: CustomerWeeklyLoadRow[];
+};
+
+export type InsightsCustomersResponse = {
+  customers: string[];
+};
+
+export type LaneWeeklyLoadRow = {
+  lane: string;
+  weekStart: string; // YYYY-MM-DD, Monday of that week
+  loadCount: number;
+};
+
+export type LaneWeeklyLoadsResponse = {
+  startDate: string;
+  company: string;
+  rows: LaneWeeklyLoadRow[];
+};

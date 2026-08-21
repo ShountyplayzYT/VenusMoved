@@ -1,4 +1,11 @@
-import type { ImportResult, LookupResponse, User } from "./types";
+import type {
+  CustomerWeeklyLoadsResponse,
+  ImportResult,
+  InsightsCustomersResponse,
+  LaneWeeklyLoadsResponse,
+  LookupResponse,
+  User,
+} from "./types";
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -52,6 +59,23 @@ export async function lookup(laneText: string): Promise<LookupResponse> {
     body: JSON.stringify({ laneText }),
   });
   return handle<LookupResponse>(res);
+}
+
+export async function getCustomerWeeklyLoads(): Promise<CustomerWeeklyLoadsResponse> {
+  const res = await fetch("/api/insights/customer-loads", { credentials: "same-origin" });
+  return handle<CustomerWeeklyLoadsResponse>(res);
+}
+
+export async function getInsightsCustomers(): Promise<InsightsCustomersResponse> {
+  const res = await fetch("/api/insights/customers", { credentials: "same-origin" });
+  return handle<InsightsCustomersResponse>(res);
+}
+
+export async function getCustomerLaneWeeklyLoads(company: string): Promise<LaneWeeklyLoadsResponse> {
+  const res = await fetch(`/api/insights/customer-lanes?company=${encodeURIComponent(company)}`, {
+    credentials: "same-origin",
+  });
+  return handle<LaneWeeklyLoadsResponse>(res);
 }
 
 export async function importReport(file: File): Promise<ImportResult> {
