@@ -3,7 +3,7 @@ from contextlib import contextmanager
 
 import psycopg
 
-TABLE_NAME = "loads"
+TABLE_NAME = "shipmentsdb"
 COL_ORIGIN = "Origin"
 COL_DEST = "Destination"
 COL_SHIP_DATE = "Ship/Date"
