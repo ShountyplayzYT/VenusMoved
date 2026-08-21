@@ -22,13 +22,28 @@ function mondayOf(d: Date): Date {
 // Builds the last WEEKS_BACK Monday-aligned week-start dates (ascending),
 // matching the Monday-Sunday buckets the backend computes with
 // Postgres' date_trunc('week', ...).
+// Formats a Date as a plain YYYY-MM-DD string using its LOCAL calendar
+// fields. We deliberately avoid `toISOString()` here: it converts to UTC
+// first, which shifts the date backwards by one day in timezones ahead of
+// UTC (e.g. IST) and breaks the match against the backend's naive SQL
+// `date` values (date_trunc('week', ship_date)::date has no timezone).
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Builds the last WEEKS_BACK Monday-aligned week-start dates (ascending),
+// matching the Monday-Sunday buckets the backend computes with
+// Postgres' date_trunc('week', ...).
 function buildWeekGrid(weeksBack: number): string[] {
   const thisMonday = mondayOf(new Date());
   const weeks: string[] = [];
   for (let i = weeksBack - 1; i >= 0; i--) {
     const d = new Date(thisMonday);
     d.setDate(thisMonday.getDate() - i * 7);
-    weeks.push(d.toISOString().slice(0, 10));
+    weeks.push(toDateKey(d));
   }
   return weeks;
 }
