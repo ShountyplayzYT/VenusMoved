@@ -39,6 +39,28 @@ def to_number(val):
         return None
 
 
+def to_integer(val):
+    if val is None:
+        return None
+
+    s = str(val).strip()
+
+    if s == "" or s.upper() == "EMPTY":
+        return None
+
+    s = s.replace(",", "")
+
+    try:
+        number = float(s)
+
+        if not number.is_integer():
+            return None
+
+        return int(number)
+    except (ValueError, TypeError):
+        return None
+
+
 def safe_get(row, index):
     if isinstance(row, (tuple, list)) and len(row) > index:
         return row[index]
@@ -111,7 +133,9 @@ def get_comparable_loads(origin_city, destination_city, limit=5):
         '''
         cur.execute(query, (f"{origin_city}%", f"{destination_city}%", limit))
         rows = cur.fetchall()
+
     results = []
+
     for r in rows:
         results.append({
             "origin": safe_get(r, 0),
@@ -119,56 +143,57 @@ def get_comparable_loads(origin_city, destination_city, limit=5):
             "shipDate": str(safe_get(r, 2)) if safe_get(r, 2) is not None else None,
             "lineHaul": to_number(safe_get(r, 3)),
         })
+
     return results
 
 
-# ---------- raw report import ----------
-
 def ensure_import_schema():
-    """Makes sure the "Company" column and the Load # uniqueness
-    constraint exist, so imports can be re-run safely."""
     with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(f'ALTER TABLE "{TABLE_NAME}" ADD COLUMN IF NOT EXISTS "{COL_COMPANY}" TEXT;')
-        cur.execute(f"""
+        cur.execute(
+            f'ALTER TABLE "{TABLE_NAME}" ADD COLUMN IF NOT EXISTS "{COL_COMPANY}" TEXT;'
+        )
+
+        cur.execute(
+            f"""
             DO $$
             BEGIN
                 IF NOT EXISTS (
-                    SELECT 1 FROM pg_constraint WHERE conname = 'shipmentsdb_load_unique'
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'shipmentsdb_load_unique'
                 ) THEN
                     ALTER TABLE "{TABLE_NAME}"
-                    ADD CONSTRAINT shipmentsdb_load_unique UNIQUE ("{COL_LOAD_NUM}");
+                    ADD CONSTRAINT shipmentsdb_load_unique
+                    UNIQUE ("{COL_LOAD_NUM}");
                 END IF;
             END $$;
-        """)
+            """
+        )
+
         conn.commit()
 
 
 def insert_new_shipment_records(records):
-    """
-    Inserts load records whose "Load #" isn't already in shipmentsdb.
-    For a "Load #" that already exists, the row is left alone EXCEPT its
-    "Company" is backfilled if it's currently empty (existing data is
-    never overwritten otherwise). `records` is a list of dicts keyed by
-    db column name (as produced by importer.parse_raw_workbook).
-    Returns (inserted_count, matched_existing_count).
-    """
     if not records:
         return 0, 0
 
     ensure_import_schema()
 
-    # de-dupe by Load # within this file — a multi-row INSERT can't hit
-    # the same conflict target twice in one statement
     deduped = {}
+
     for r in records:
-        deduped[r.get(COL_LOAD_NUM)] = r
+        r[COL_LOAD_NUM] = to_integer(r.get(COL_LOAD_NUM))
+
+        if r[COL_LOAD_NUM] is not None:
+            deduped[r[COL_LOAD_NUM]] = r
+
     records = list(deduped.values())
+
+    if not records:
+        return 0, 0
 
     col_names = list(records[0].keys())
 
     def esc(name):
-        # the "%" column would otherwise be mistaken for a query
-        # placeholder once it's embedded in the raw SQL text
         return name.replace("%", "%%")
 
     table_q = f'"{TABLE_NAME}"'
@@ -183,10 +208,14 @@ def insert_new_shipment_records(records):
     with get_conn() as conn, conn.cursor() as cur:
         for start in range(0, len(records), batch_size):
             batch = records[start:start + batch_size]
+
             row_placeholders = ", ".join(
-                "(" + ", ".join(["%s"] * len(col_names)) + ")" for _ in batch
+                "(" + ", ".join(["%s"] * len(col_names)) + ")"
+                for _ in batch
             )
+
             params = []
+
             for r in batch:
                 params.extend(r.get(c) for c in col_names)
 
@@ -197,18 +226,19 @@ def insert_new_shipment_records(records):
                     {company_q} = COALESCE({table_q}.{company_q}, EXCLUDED.{company_q})
                 RETURNING (xmax = 0) AS is_new
             '''
+
             cur.execute(insert_sql, params)
+
             for (is_new,) in cur.fetchall():
                 if is_new:
                     inserted += 1
                 else:
                     matched_existing += 1
+
         conn.commit()
 
     return inserted, matched_existing
 
-
-# ---------- users ----------
 
 def get_user_by_email(email):
     with get_conn() as conn, conn.cursor() as cur:
@@ -217,9 +247,16 @@ def get_user_by_email(email):
             (email.strip().lower(),),
         )
         row = cur.fetchone()
+
     if not row:
         return None
-    return {"email": row[0], "name": row[1], "salt": row[2], "passwordHash": row[3]}
+
+    return {
+        "email": row[0],
+        "name": row[1],
+        "salt": row[2],
+        "passwordHash": row[3],
+    }
 
 
 def create_user(name, email, salt, password_hash):
@@ -231,8 +268,6 @@ def create_user(name, email, salt, password_hash):
         conn.commit()
 
 
-# ---------- geocode / distance cache ----------
-
 def get_cached_geocode(city_name):
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -240,9 +275,15 @@ def get_cached_geocode(city_name):
             (city_name,),
         )
         row = cur.fetchone()
+
     if not row:
         return None
-    return {"lon": row[0], "lat": row[1], "state": row[2]}
+
+    return {
+        "lon": row[0],
+        "lat": row[1],
+        "state": row[2],
+    }
 
 
 def set_cached_geocode(city_name, lon, lat, state):
@@ -252,8 +293,10 @@ def set_cached_geocode(city_name, lon, lat, state):
             INSERT INTO geocode_cache (city_name, lon, lat, state, updated_at)
             VALUES (%s, %s, %s, %s, now())
             ON CONFLICT (city_name) DO UPDATE
-                SET lon = EXCLUDED.lon, lat = EXCLUDED.lat,
-                    state = EXCLUDED.state, updated_at = now()
+                SET lon = EXCLUDED.lon,
+                    lat = EXCLUDED.lat,
+                    state = EXCLUDED.state,
+                    updated_at = now()
             """,
             (city_name, lon, lat, state),
         )
@@ -267,9 +310,14 @@ def get_cached_route(route_key):
             (route_key,),
         )
         row = cur.fetchone()
+
     if not row:
         return None
-    return {"km": row[0], "hours": row[1]}
+
+    return {
+        "km": row[0],
+        "hours": row[1],
+    }
 
 
 def set_cached_route(route_key, km, hours):
@@ -279,7 +327,9 @@ def set_cached_route(route_key, km, hours):
             INSERT INTO distance_cache (route_key, km, hours, updated_at)
             VALUES (%s, %s, %s, now())
             ON CONFLICT (route_key) DO UPDATE
-                SET km = EXCLUDED.km, hours = EXCLUDED.hours, updated_at = now()
+                SET km = EXCLUDED.km,
+                    hours = EXCLUDED.hours,
+                    updated_at = now()
             """,
             (route_key, km, hours),
         )
