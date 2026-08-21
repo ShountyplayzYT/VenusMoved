@@ -157,6 +157,13 @@ def insert_new_shipment_records(records):
 
     ensure_import_schema()
 
+    # de-dupe by Load # within this file — a multi-row INSERT can't hit
+    # the same conflict target twice in one statement
+    deduped = {}
+    for r in records:
+        deduped[r.get(COL_LOAD_NUM)] = r
+    records = list(deduped.values())
+
     col_names = list(records[0].keys())
 
     def esc(name):
@@ -168,29 +175,34 @@ def insert_new_shipment_records(records):
     company_q = f'"{esc(COL_COMPANY)}"'
     key_q = f'"{esc(COL_LOAD_NUM)}"'
     cols_q = ", ".join(f'"{esc(c)}"' for c in col_names)
-    placeholders = ", ".join(["%s"] * len(col_names))
-
-    insert_sql = f'''
-        INSERT INTO {table_q} ({cols_q})
-        VALUES ({placeholders})
-        ON CONFLICT ({key_q}) DO UPDATE SET
-            {company_q} = COALESCE({table_q}.{company_q}, EXCLUDED.{company_q})
-        RETURNING (xmax = 0) AS is_new
-    '''
 
     inserted = 0
     matched_existing = 0
+    batch_size = 500
+
     with get_conn() as conn, conn.cursor() as cur:
-        for r in records:
-            row = tuple(r.get(c) for c in col_names)
-            cur.execute(insert_sql, row)
-            result = cur.fetchone()
-            if result is None:
-                continue
-            if result[0]:
-                inserted += 1
-            else:
-                matched_existing += 1
+        for start in range(0, len(records), batch_size):
+            batch = records[start:start + batch_size]
+            row_placeholders = ", ".join(
+                "(" + ", ".join(["%s"] * len(col_names)) + ")" for _ in batch
+            )
+            params = []
+            for r in batch:
+                params.extend(r.get(c) for c in col_names)
+
+            insert_sql = f'''
+                INSERT INTO {table_q} ({cols_q})
+                VALUES {row_placeholders}
+                ON CONFLICT ({key_q}) DO UPDATE SET
+                    {company_q} = COALESCE({table_q}.{company_q}, EXCLUDED.{company_q})
+                RETURNING (xmax = 0) AS is_new
+            '''
+            cur.execute(insert_sql, params)
+            for (is_new,) in cur.fetchall():
+                if is_new:
+                    inserted += 1
+                else:
+                    matched_existing += 1
         conn.commit()
 
     return inserted, matched_existing
