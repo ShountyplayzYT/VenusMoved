@@ -112,6 +112,19 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
 
+    # Always ask DAT Rateview for a market rate on this lane, regardless
+    # of whether we already have our own historical data - it's shown
+    # alongside whatever else we find, not just used as a last resort.
+    dat_rate = None
+    try:
+        dat_rate = dat.get_rate(
+            parsed["origin"],
+            parsed["destination"],
+            geo_lookup=geocode.get_geo_info,
+        )
+    except dat.DatApiError as e:
+        print(f"[dat] lookup skipped: {e}")
+
     # Case 1: no exact lane match -> try state-level fallback
     if not details:
         state_details = _state_fallback(parsed["origin"], parsed["destination"])
@@ -120,20 +133,8 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
                 "mode": "state",
                 "parsed": parsed,
                 "historical": state_details,
-                "datRate": None,
+                "datRate": dat_rate,
             }
-
-        # Case 2: nothing in our own history at all -> ask DAT Rateview
-        # for a market rate on this lane instead of coming back empty.
-        dat_rate = None
-        try:
-            dat_rate = dat.get_rate(
-                parsed["origin"],
-                parsed["destination"],
-                geo_lookup=geocode.get_geo_info,
-            )
-        except dat.DatApiError as e:
-            print(f"[dat] lookup skipped: {e}")
 
         return {
             "mode": "dat" if dat_rate else "none",
@@ -147,7 +148,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
         "mode": "exact",
         "parsed": parsed,
         "historical": details,
-        "datRate": None,
+        "datRate": dat_rate,
     }
 
 
