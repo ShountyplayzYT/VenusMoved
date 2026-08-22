@@ -28,6 +28,11 @@ in-process and transparently refresh it (fetching a fresh org token first)
 once it's within a short buffer of expiring, so callers of get_rate()
 don't need to think about any of this.
 
+DAT also requires an `x-dat-partner-id` header (our integration's partner
+ID, provided by DAT) on every request - auth calls and product endpoints
+alike. Set it via the DAT_PARTNER_ID env var. Missing this header is a
+common cause of every DAT call failing outright.
+
 NOTE ON REQUEST BODY FIELD NAMES: the DAT docs excerpt we were given
 confirms the endpoints, the org-token-in-header handoff, the 30 minute
 expiry, and the organization-token response shape
@@ -86,6 +91,11 @@ def _required_env(name):
     if not value:
         raise DatApiError(f"{name} is not configured")
     return value
+
+
+def _partner_id_header():
+    """The x-dat-partner-id header DAT requires on every request."""
+    return {"x-dat-partner-id": _required_env("DAT_PARTNER_ID")}
 
 
 class _TokenCache:
@@ -164,7 +174,8 @@ def _get_organization_token():
     body = {field_names[0]: username, field_names[1]: password}
 
     url = f"{_identity_base_url()}{DAT_ORG_TOKEN_PATH}"
-    data = _post_json(url, json_body=body, error_prefix="DAT organization token request")
+    headers = {**_partner_id_header(), "Content-Type": "application/json"}
+    data = _post_json(url, json_body=body, headers=headers, error_prefix="DAT organization token request")
     token, _ttl = _extract_token_and_ttl(data, "DAT organization token")
     return token
 
@@ -184,6 +195,7 @@ def _get_individual_token(force_refresh=False):
     headers = {
         "Authorization": f"Bearer {org_token}",
         "Content-Type": "application/json",
+        **_partner_id_header(),
     }
 
     url = f"{_identity_base_url()}{DAT_USER_TOKEN_PATH}"
@@ -201,6 +213,7 @@ def _headers(force_refresh_token=False):
         # Lets DAT cache the response for later /get lookups; also tends
         # to be cheaper/faster for repeat lanes.
         "x-cache-response": "true",
+        **_partner_id_header(),
     }
 
 

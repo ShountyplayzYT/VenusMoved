@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+import logging
 from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta
@@ -12,6 +13,8 @@ from openai import OpenAI
 
 from _lib import db, auth, geocode, pricing, importer, dat
 from _lib.models import SignupRequest, LoginRequest, LookupRequest
+
+logger = logging.getLogger("linehaul.api")
 
 app = FastAPI()
 
@@ -123,7 +126,10 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
             geo_lookup=geocode.get_geo_info,
         )
     except dat.DatApiError as e:
-        print(f"[dat] lookup skipped: {e}")
+        # Logged (not swallowed silently) so failures are visible in
+        # Vercel function logs even though we still return a normal
+        # response to the user with datRate: null.
+        logger.warning("DAT lookup failed for %s -> %s: %s", parsed["origin"], parsed["destination"], e)
 
     # Case 1: no exact lane match -> try state-level fallback
     if not details:
