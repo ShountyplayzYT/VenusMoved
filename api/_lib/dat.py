@@ -49,8 +49,11 @@ independent of that detail.
 import os
 import threading
 import time
+import logging
 
 import requests
+
+logger = logging.getLogger("linehaul.dat")
 
 DAT_LOOKUPS_PATH = "/v1/lookups"
 DAT_ORG_TOKEN_PATH = "/v1/token/organization"
@@ -244,16 +247,30 @@ def build_location(location_text, geo_lookup=None):
     """
     city, state = _split_city_state(location_text)
     if not city:
+        logger.warning("DAT build_location: couldn't parse any city out of %r", location_text)
         return None
 
     if not state and geo_lookup:
         try:
             geo = geo_lookup(location_text)
-        except Exception:
+        except Exception as e:
+            logger.warning("DAT build_location: geo_lookup(%r) raised %s", location_text, e)
             geo = None
-        state = _resolve_state_abbr(geo.get("state") if geo else None)
+        raw_state = geo.get("state") if geo else None
+        state = _resolve_state_abbr(raw_state)
+        if raw_state and not state:
+            logger.warning(
+                "DAT build_location: geo_lookup returned state %r for %r, "
+                "but it's not in US_STATE_ABBR",
+                raw_state, location_text,
+            )
 
     if not state:
+        logger.warning(
+            "DAT build_location: no state resolved for %r (no ', ST' suffix, "
+            "and geo_lookup=%s didn't help) - skipping DAT lookup",
+            location_text, "provided" if geo_lookup else "not provided",
+        )
         return None
 
     return {"city": city, "stateOrProvince": state}
@@ -262,10 +279,12 @@ def build_location(location_text, geo_lookup=None):
 def _extract_rate(entry):
     response = entry.get("response") or {}
     if "errors" in response or "statusCode" in response:
+        logger.warning("DAT lookup returned a per-lane error: %s", response)
         return None
 
     rate = response.get("rate")
     if not rate:
+        logger.warning("DAT lookup response had no 'rate' field: %s", response)
         return None
 
     per_mile = rate.get("perMile") or {}
@@ -301,6 +320,10 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
     origin = build_location(origin_text, geo_lookup)
     destination = build_location(destination_text, geo_lookup)
     if not origin or not destination:
+        logger.warning(
+            "DAT get_rate: skipping call, location unresolved (origin=%r -> %s, destination=%r -> %s)",
+            origin_text, origin, destination_text, destination,
+        )
         return None
 
     equipment = equipment or os.environ.get("DAT_DEFAULT_EQUIPMENT", "VAN")
@@ -315,6 +338,8 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
         "targetEscalation": {"escalationType": "BEST_FIT"},
     }]
 
+    logger.info("DAT get_rate: calling /v1/lookups for %s -> %s", origin, destination)
+
     url = f"{_base_url()}{DAT_LOOKUPS_PATH}"
     try:
         resp = requests.post(url, json=payload, headers=_headers(), timeout=10)
@@ -325,6 +350,7 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
         # Individual token may have expired/been revoked server-side even
         # though our cache thought it was still valid - force a fresh
         # org -> individual token exchange and retry exactly once.
+        logger.info("DAT get_rate: got 401, forcing token refresh and retrying once")
         _individual_token_cache.clear()
         try:
             resp = requests.post(url, json=payload, headers=_headers(force_refresh_token=True), timeout=10)
@@ -337,6 +363,7 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
     data = resp.json()
     entries = data.get("rateResponses") or []
     if not entries:
+        logger.warning("DAT get_rate: response had no rateResponses entries: %s", data)
         return None
 
     return _extract_rate(entries[0])

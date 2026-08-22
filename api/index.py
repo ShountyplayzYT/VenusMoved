@@ -16,6 +16,11 @@ from _lib.models import SignupRequest, LoginRequest, LookupRequest
 
 logger = logging.getLogger("linehaul.api")
 
+# Explicit config (rather than relying on Python's default "handler of
+# last resort") so INFO-level diagnostics show up in Vercel's function
+# logs, not just WARNING+. Safe to call once at import time.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
 app = FastAPI()
 
 
