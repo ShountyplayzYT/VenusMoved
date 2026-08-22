@@ -43,3 +43,70 @@ def parse_lane_text(client, lane_text):
     text = response.choices[0].message.content.strip()
     text = re.sub(r"^```(json)?|```$", "", text, flags=re.MULTILINE).strip()
     return json.loads(text)
+
+
+def guess_state_abbr(client, city_name):
+    """Best-guess the US state a city is in, using the model's own
+    knowledge, for cities where the caller didn't say a state out loud.
+
+    Used specifically to fill in the state DAT Rateview requires - we
+    used to do this via a free third-party geocoding API, but that
+    endpoint isn't reliable/allowed for production server-side traffic,
+    so we ask the LLM we already have instead. Returns a 2-letter USPS
+    abbreviation, or None if the model isn't confident.
+    """
+    prompt = (
+        f'What US state is the city "{city_name}" most commonly understood '
+        "to be in? If it's a well-known major city, answer with its state. "
+        "If the name is too ambiguous, obscure, or not a real US city to "
+        'be confident, respond with exactly "UNKNOWN". '
+        "Respond with ONLY the 2-letter USPS state abbreviation (e.g. "
+        '"MA") or "UNKNOWN" - no other text, no punctuation.'
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        return None
+
+    text = (response.choices[0].message.content or "").strip().upper()
+    if text == "UNKNOWN" or len(text) != 2 or not text.isalpha():
+        return None
+    return text
+
+
+def split_city_state(location_text):
+    """'Sayreville, NJ' -> ('Sayreville', 'NJ'); 'Sayreville' -> ('Sayreville', None)."""
+    if not location_text:
+        return None, None
+    parts = [p.strip() for p in location_text.split(",")]
+    if len(parts) == 2 and parts[1] and 2 <= len(parts[1]) <= 3:
+        return parts[0], parts[1].upper()
+    return parts[0], None
+
+
+def resolve_state_abbr(client, location_text):
+    """Given a 'City' or 'City, ST' string, return a 2-letter state
+    abbreviation - either parsed directly out of the text, or guessed via
+    the LLM using its own knowledge of major US cities when no state was
+    given. Returns None if we can't confidently determine one.
+    """
+    city, state = split_city_state(location_text)
+    if state:
+        return state
+    if not city:
+        return None
+    return guess_state_abbr(client, city)
+
+
+def make_llm_geo_lookup(client):
+    """Adapts guess_state_abbr to the `geo_lookup(location_text) -> dict`
+    shape dat.build_location() expects, so DAT's fallback state
+    resolution runs through the LLM instead of a third-party geocoder.
+    """
+    def _lookup(location_text):
+        state = guess_state_abbr(client, location_text)
+        return {"state": state} if state else None
+    return _lookup

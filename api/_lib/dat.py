@@ -234,7 +234,13 @@ def _resolve_state_abbr(state_name):
     if not state_name:
         return None
     from . import pricing  # local import avoids a circular import at module load time
-    return pricing.US_STATE_ABBR.get(state_name.strip().lower())
+    normalized = state_name.strip()
+    # Accept an already-2-letter USPS abbreviation as-is (e.g. from
+    # pricing.guess_state_abbr), in addition to a full state name (e.g.
+    # from a geocoding service that returns "Massachusetts").
+    if len(normalized) == 2 and normalized.upper() in pricing.US_STATE_ABBR.values():
+        return normalized.upper()
+    return pricing.US_STATE_ABBR.get(normalized.lower())
 
 
 def build_location(location_text, geo_lookup=None):

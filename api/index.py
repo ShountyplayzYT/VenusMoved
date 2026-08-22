@@ -87,15 +87,9 @@ def me(user=Depends(auth.get_current_user)):
 
 # --------------------------------------------------------------- lookup ----
 
-def _state_fallback(origin_text, destination_text):
-    origin_geo = geocode.get_geo_info(origin_text)
-    dest_geo = geocode.get_geo_info(destination_text)
-
-    origin_state = origin_geo.get("state") if origin_geo else None
-    dest_state = dest_geo.get("state") if dest_geo else None
-
-    origin_abbr = pricing.US_STATE_ABBR.get(origin_state.strip().lower()) if origin_state else None
-    dest_abbr = pricing.US_STATE_ABBR.get(dest_state.strip().lower()) if dest_state else None
+def _state_fallback(client, origin_text, destination_text):
+    origin_abbr = pricing.resolve_state_abbr(client, origin_text)
+    dest_abbr = pricing.resolve_state_abbr(client, destination_text)
 
     if not origin_abbr or not dest_abbr:
         return None
@@ -128,7 +122,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
         dat_rate = dat.get_rate(
             parsed["origin"],
             parsed["destination"],
-            geo_lookup=geocode.get_geo_info,
+            geo_lookup=pricing.make_llm_geo_lookup(client),
         )
     except dat.DatApiError as e:
         # Logged (not swallowed silently) so failures are visible in
@@ -138,7 +132,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
 
     # Case 1: no exact lane match -> try state-level fallback
     if not details:
-        state_details = _state_fallback(parsed["origin"], parsed["destination"])
+        state_details = _state_fallback(client, parsed["origin"], parsed["destination"])
         if state_details:
             return {
                 "mode": "state",
