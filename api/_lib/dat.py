@@ -306,25 +306,21 @@ def _extract_rate(entry):
     # docs excerpt we have, so this is a best-effort, defensive read of a
     # few plausible shapes. Log the raw response (see get_rate) if this
     # comes back empty and you need to find the real key.
-    fuel = rate.get("fuel") or rate.get("fuelSurcharge") or {}
-    fuel_per_mile = fuel.get("perMileUsd") if isinstance(fuel, dict) else None
+    fuel_per_mile = rate.get("averageFuelSurchargePerMileUsd")
+    fuel_per_trip = rate.get("averageFuelSurchargePerTripUsd")
     mileage = rate.get("mileage")
 
     per_mile_rate = per_mile.get("rateUsd")
     per_trip_rate = per_trip.get("rateUsd")
 
-    # Fuel-inclusive figures: fold the fuel surcharge into the linehaul
-    # rate so this matches what the portal shows as the all-in rate,
-    # rather than the linehaul-only number DAT's API returns by default.
-    # See https://www.dat.com/blog/where-do-dat-freight-rates-come-from -
-    # contract rates in particular quote fuel separately from linehaul.
+    # Fuel-inclusive figures: fold DAT's fuel surcharge into the linehaul
+    # rate so this matches the all-in rate shown on the portal, rather
+    # than the linehaul-only number the API returns by default.
     per_mile_with_fuel = (
         per_mile_rate + fuel_per_mile if per_mile_rate is not None and fuel_per_mile is not None else per_mile_rate
     )
     per_trip_with_fuel = (
-        per_trip_rate + fuel_per_mile * mileage
-        if per_trip_rate is not None and fuel_per_mile is not None and mileage
-        else per_trip_rate
+        per_trip_rate + fuel_per_trip if per_trip_rate is not None and fuel_per_trip is not None else per_trip_rate
     )
 
     return {
