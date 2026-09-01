@@ -299,13 +299,8 @@ def _extract_rate(entry):
     origin_area = escalation.get("origin") or {}
 
     # DAT calculates the fuel surcharge as a separate component of the
-    # rate (see https://www.dat.com/blog/where-do-dat-freight-rates-come-from
-    # and DAT's own "does that include fuel?" guidance) - the perMile/perTrip
-    # totals above may or may not already have it folded in depending on
-    # rate type. We don't have a confirmed field name for this from the
-    # docs excerpt we have, so this is a best-effort, defensive read of a
-    # few plausible shapes. Log the raw response (see get_rate) if this
-    # comes back empty and you need to find the real key.
+    # rate (confirmed field names from DAT's OpenAPI spec:
+    # rate.averageFuelSurchargePerMileUsd / rate.averageFuelSurchargePerTripUsd).
     fuel_per_mile = rate.get("averageFuelSurchargePerMileUsd")
     fuel_per_trip = rate.get("averageFuelSurchargePerTripUsd")
     mileage = rate.get("mileage")
@@ -323,14 +318,19 @@ def _extract_rate(entry):
         per_trip_rate + fuel_per_trip if per_trip_rate is not None and fuel_per_trip is not None else per_trip_rate
     )
 
+    per_trip_low = per_trip.get("lowUsd")
+    per_trip_high = per_trip.get("highUsd")
+    per_mile_low = per_mile.get("lowUsd")
+    per_mile_high = per_mile.get("highUsd")
+
     return {
         "mileage": mileage,
         "perTripRateUsd": per_trip_with_fuel,
-        "perTripLowUsd": per_trip.get("lowUsd"),
-        "perTripHighUsd": per_trip.get("highUsd"),
+        "perTripLowUsd": per_trip_low + fuel_per_trip if per_trip_low is not None and fuel_per_trip is not None else per_trip_low,
+        "perTripHighUsd": per_trip_high + fuel_per_trip if per_trip_high is not None and fuel_per_trip is not None else per_trip_high,
         "perMileRateUsd": per_mile_with_fuel,
-        "perMileLowUsd": per_mile.get("lowUsd"),
-        "perMileHighUsd": per_mile.get("highUsd"),
+        "perMileLowUsd": per_mile_low + fuel_per_mile if per_mile_low is not None and fuel_per_mile is not None else per_mile_low,
+        "perMileHighUsd": per_mile_high + fuel_per_mile if per_mile_high is not None and fuel_per_mile is not None else per_mile_high,
         "perTripLinehaulUsd": per_trip_rate,
         "perMileLinehaulUsd": per_mile_rate,
         "fuelPerMileUsd": fuel_per_mile,
