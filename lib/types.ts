@@ -21,11 +21,13 @@ export type DatRate = {
   perMileRateUsd: number | null;
   perMileLowUsd: number | null;
   perMileHighUsd: number | null;
+  fuelPerMileUsd: number | null;
   reports: number | null;
   companies: number | null;
   rateStrength: number | null;
   timeframe: string | null;
   areaType: string | null;
+  rateType: string | null;
 };
 
 export type LookupResponse = {

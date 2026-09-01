@@ -23,7 +23,7 @@ function DatRateCard({ datRate, compact }: { datRate: NonNullable<LookupResponse
           {money(datRate.perTripRateUsd)}
         </div>
         <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          DAT Rateview Estimate (per trip)
+          DAT Rateview Estimate (per trip){datRate.rateType ? ` · ${datRate.rateType}` : ""}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
@@ -39,6 +39,9 @@ function DatRateCard({ datRate, compact }: { datRate: NonNullable<LookupResponse
           <div>
             <span className="text-textSecondary">Per mile: </span>
             {money(datRate.perMileRateUsd)}
+            {datRate.fuelPerMileUsd != null && (
+              <span className="text-textTertiary"> (+{money(datRate.fuelPerMileUsd)} fuel)</span>
+            )}
           </div>
         )}
         <div>

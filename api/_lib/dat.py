@@ -298,6 +298,17 @@ def _extract_rate(entry):
     escalation = response.get("escalation") or {}
     origin_area = escalation.get("origin") or {}
 
+    # DAT calculates the fuel surcharge as a separate component of the
+    # rate (see https://www.dat.com/blog/where-do-dat-freight-rates-come-from
+    # and DAT's own "does that include fuel?" guidance) - the perMile/perTrip
+    # totals above may or may not already have it folded in depending on
+    # rate type. We don't have a confirmed field name for this from the
+    # docs excerpt we have, so this is a best-effort, defensive read of a
+    # few plausible shapes. Log the raw response (see get_rate) if this
+    # comes back empty and you need to find the real key.
+    fuel = rate.get("fuel") or rate.get("fuelSurcharge") or {}
+    fuel_per_mile = fuel.get("perMileUsd") if isinstance(fuel, dict) else None
+
     return {
         "mileage": rate.get("mileage"),
         "perTripRateUsd": per_trip.get("rateUsd"),
@@ -306,11 +317,13 @@ def _extract_rate(entry):
         "perMileRateUsd": per_mile.get("rateUsd"),
         "perMileLowUsd": per_mile.get("lowUsd"),
         "perMileHighUsd": per_mile.get("highUsd"),
+        "fuelPerMileUsd": fuel_per_mile,
         "reports": rate.get("reports"),
         "companies": rate.get("companies"),
         "rateStrength": rate.get("rateStrength"),
         "timeframe": escalation.get("timeframe"),
         "areaType": origin_area.get("type"),
+        "rateType": response.get("rateType"),
     }
 
 
@@ -333,7 +346,7 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
         return None
 
     equipment = equipment or os.environ.get("DAT_DEFAULT_EQUIPMENT", "VAN")
-    rate_type = rate_type or os.environ.get("DAT_DEFAULT_RATE_TYPE", "CONTRACT")
+    rate_type = rate_type or os.environ.get("DAT_DEFAULT_RATE_TYPE", "SPOT")
 
     payload = [{
         "origin": origin,
@@ -367,6 +380,7 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
         raise DatApiError(f"DAT API returned {resp.status_code}: {resp.text[:300]}")
 
     data = resp.json()
+    logger.info("DAT get_rate: raw response for %s -> %s: %s", origin, destination, data)
     entries = data.get("rateResponses") or []
     if not entries:
         logger.warning("DAT get_rate: response had no rateResponses entries: %s", data)
