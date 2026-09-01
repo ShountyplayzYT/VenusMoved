@@ -308,15 +308,35 @@ def _extract_rate(entry):
     # comes back empty and you need to find the real key.
     fuel = rate.get("fuel") or rate.get("fuelSurcharge") or {}
     fuel_per_mile = fuel.get("perMileUsd") if isinstance(fuel, dict) else None
+    mileage = rate.get("mileage")
+
+    per_mile_rate = per_mile.get("rateUsd")
+    per_trip_rate = per_trip.get("rateUsd")
+
+    # Fuel-inclusive figures: fold the fuel surcharge into the linehaul
+    # rate so this matches what the portal shows as the all-in rate,
+    # rather than the linehaul-only number DAT's API returns by default.
+    # See https://www.dat.com/blog/where-do-dat-freight-rates-come-from -
+    # contract rates in particular quote fuel separately from linehaul.
+    per_mile_with_fuel = (
+        per_mile_rate + fuel_per_mile if per_mile_rate is not None and fuel_per_mile is not None else per_mile_rate
+    )
+    per_trip_with_fuel = (
+        per_trip_rate + fuel_per_mile * mileage
+        if per_trip_rate is not None and fuel_per_mile is not None and mileage
+        else per_trip_rate
+    )
 
     return {
-        "mileage": rate.get("mileage"),
-        "perTripRateUsd": per_trip.get("rateUsd"),
+        "mileage": mileage,
+        "perTripRateUsd": per_trip_with_fuel,
         "perTripLowUsd": per_trip.get("lowUsd"),
         "perTripHighUsd": per_trip.get("highUsd"),
-        "perMileRateUsd": per_mile.get("rateUsd"),
+        "perMileRateUsd": per_mile_with_fuel,
         "perMileLowUsd": per_mile.get("lowUsd"),
         "perMileHighUsd": per_mile.get("highUsd"),
+        "perTripLinehaulUsd": per_trip_rate,
+        "perMileLinehaulUsd": per_mile_rate,
         "fuelPerMileUsd": fuel_per_mile,
         "reports": rate.get("reports"),
         "companies": rate.get("companies"),

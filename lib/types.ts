@@ -21,6 +21,8 @@ export type DatRate = {
   perMileRateUsd: number | null;
   perMileLowUsd: number | null;
   perMileHighUsd: number | null;
+  perTripLinehaulUsd: number | null;
+  perMileLinehaulUsd: number | null;
   fuelPerMileUsd: number | null;
   reports: number | null;
   companies: number | null;

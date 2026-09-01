@@ -40,7 +40,10 @@ function DatRateCard({ datRate, compact }: { datRate: NonNullable<LookupResponse
             <span className="text-textSecondary">Per mile: </span>
             {money(datRate.perMileRateUsd)}
             {datRate.fuelPerMileUsd != null && (
-              <span className="text-textTertiary"> (+{money(datRate.fuelPerMileUsd)} fuel)</span>
+              <span className="text-textTertiary">
+                {" "}
+                ({money(datRate.perMileLinehaulUsd)} linehaul + {money(datRate.fuelPerMileUsd)} fuel)
+              </span>
             )}
           </div>
         )}
