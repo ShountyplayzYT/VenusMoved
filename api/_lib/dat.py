@@ -364,13 +364,32 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
     equipment = equipment or os.environ.get("DAT_DEFAULT_EQUIPMENT", "VAN")
     rate_type = rate_type or os.environ.get("DAT_DEFAULT_RATE_TYPE", "SPOT")
 
+    # BEST_FIT lets DAT pick whatever area/timeframe combination it thinks
+    # fits, which doesn't reliably match what the portal UI shows for the
+    # same lane. Allow pinning a specific area/timeframe instead so results
+    # are at least reproducible and comparable against the portal.
+    #
+    # NOTE: per DAT's own schema, non-BEST_FIT escalation types are "only
+    # available for Combo Premium level subscribers" - this may 403 if the
+    # account isn't on that tier. If it does, DAT_ESCALATION_MODE can be
+    # set back to "BEST_FIT" to revert without a code change.
+    escalation_mode = os.environ.get("DAT_ESCALATION_MODE", "SPECIFIC_AREA_TYPE_AND_SPECIFIC_TIME_FRAME")
+    if escalation_mode == "BEST_FIT":
+        target_escalation = {"escalationType": "BEST_FIT"}
+    else:
+        target_escalation = {
+            "escalationType": escalation_mode,
+            "specificTimeFrame": os.environ.get("DAT_ESCALATION_TIMEFRAME", "7_DAYS"),
+            "specificAreaType": os.environ.get("DAT_ESCALATION_AREA_TYPE", "MARKET_AREA"),
+        }
+
     payload = [{
         "origin": origin,
         "destination": destination,
         "rateType": rate_type,
         "equipment": equipment,
         "includeMyRate": False,
-        "targetEscalation": {"escalationType": "BEST_FIT"},
+        "targetEscalation": target_escalation,
     }]
 
     logger.info("DAT get_rate: calling /v1/lookups for %s -> %s", origin, destination)
