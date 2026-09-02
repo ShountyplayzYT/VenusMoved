@@ -8,6 +8,14 @@ function money(v: number | null | undefined) {
     : `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
+// Per-mile rates need real precision - rounding $5.74 to $6 is a ~5%
+// error on numbers people are comparing directly against the portal.
+function moneyPerMile(v: number | null | undefined) {
+  return v === null || v === undefined
+    ? "—"
+    : `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -20,33 +28,32 @@ function DatRateCard({ datRate, compact }: { datRate: NonNullable<LookupResponse
     <div className={compact ? "rounded-2xl border border-border bg-panel p-5" : "rounded-2xl border border-border bg-panel p-5 mb-4"}>
       <div className="mb-4">
         <div className="font-mono-brand text-3xl font-bold text-teal">
-          {money(datRate.perTripRateUsd)}
+          {moneyPerMile(datRate.perMileRateUsd)}
+          <span className="text-lg font-normal text-textTertiary">/mi</span>
         </div>
         <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          DAT Rateview Estimate (per trip){datRate.rateType ? ` · ${datRate.rateType}` : ""}
+          DAT Rateview Estimate · all-in with fuel
+          {datRate.rateType ? ` · ${datRate.rateType}` : ""}
         </div>
+        {datRate.fuelPerMileUsd != null && (
+          <div className="text-textSecondary text-xs mt-1">
+            {moneyPerMile(datRate.perMileLinehaulUsd)} linehaul + {moneyPerMile(datRate.fuelPerMileUsd)} fuel
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
         <div>
-          <span className="text-textSecondary">Range: </span>
-          {money(datRate.perTripLowUsd)} – {money(datRate.perTripHighUsd)}
+          <span className="text-textSecondary">Per trip: </span>
+          {money(datRate.perTripRateUsd)}
         </div>
         <div>
-          <span className="text-textSecondary">Mileage: </span>
-          {datRate.mileage ?? "—"}
+          <span className="text-textSecondary">Range: </span>
+          {moneyPerMile(datRate.perMileLowUsd)} – {moneyPerMile(datRate.perMileHighUsd)}/mi
         </div>
-        {datRate.perMileRateUsd != null && (
-          <div>
-            <span className="text-textSecondary">Per mile: </span>
-            {money(datRate.perMileRateUsd)}
-            {datRate.fuelPerMileUsd != null && (
-              <span className="text-textTertiary">
-                {" "}
-                ({money(datRate.perMileLinehaulUsd)} linehaul + {money(datRate.fuelPerMileUsd)} fuel)
-              </span>
-            )}
-          </div>
-        )}
+        <div>
+          <span className="text-textSecondary">Distance: </span>
+          {datRate.mileage != null ? `${datRate.mileage} mi` : "—"}
+        </div>
         <div>
           <span className="text-textSecondary">Reports: </span>
           {datRate.reports ?? "—"}
