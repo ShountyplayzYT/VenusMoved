@@ -379,8 +379,8 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
     else:
         target_escalation = {
             "escalationType": escalation_mode,
-            "specificTimeFrame": os.environ.get("DAT_ESCALATION_TIMEFRAME", "7_DAYS"),
-            "specificAreaType": os.environ.get("DAT_ESCALATION_AREA_TYPE", "MARKET_AREA"),
+            "specificTimeFrame": os.environ.get("DAT_ESCALATION_TIMEFRAME", "3_DAYS"),
+            "specificAreaType": os.environ.get("DAT_ESCALATION_AREA_TYPE", "3_DIGIT_ZIP"),
         }
 
     payload = [{
