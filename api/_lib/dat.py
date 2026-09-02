@@ -343,14 +343,83 @@ def _extract_rate(entry):
     }
 
 
+def _escalation_ladder():
+    """Ordered list of targetEscalation configs to try, tightest first.
+
+    DAT's BEST_FIT often lands on a different (usually wider) area/timeframe
+    than what the portal UI shows for the same lane, which was producing
+    rates that didn't match. A tight, specific escalation matches the portal
+    much more closely when there's enough data - but "Rate not found" is a
+    real per-lane response when a narrow window has no reports, especially
+    on lower-volume lanes. So: try tight first, widen only if DAT says
+    there's nothing there, and always fall back to BEST_FIT last since that
+    one is documented to work for any lane with any data at all.
+
+    A single env var can override the whole ladder with one fixed choice
+    (e.g. for comparing against a specific portal setting during testing):
+    set DAT_ESCALATION_MODE=BEST_FIT to skip straight to the guaranteed
+    fallback, or set DAT_ESCALATION_MODE plus DAT_ESCALATION_TIMEFRAME /
+    DAT_ESCALATION_AREA_TYPE to pin one specific combination with no
+    widening at all.
+    """
+    forced_mode = os.environ.get("DAT_ESCALATION_MODE")
+    if forced_mode == "BEST_FIT":
+        return [{"escalationType": "BEST_FIT"}]
+    if forced_mode:
+        return [{
+            "escalationType": forced_mode,
+            "specificTimeFrame": os.environ.get("DAT_ESCALATION_TIMEFRAME", "3_DAYS"),
+            "specificAreaType": os.environ.get("DAT_ESCALATION_AREA_TYPE", "3_DIGIT_ZIP"),
+        }]
+
+    specific = "SPECIFIC_AREA_TYPE_AND_SPECIFIC_TIME_FRAME"
+    return [
+        {"escalationType": specific, "specificTimeFrame": "3_DAYS", "specificAreaType": "3_DIGIT_ZIP"},
+        {"escalationType": specific, "specificTimeFrame": "7_DAYS", "specificAreaType": "MARKET_AREA"},
+        {"escalationType": specific, "specificTimeFrame": "30_DAYS", "specificAreaType": "MARKET_AREA"},
+        {"escalationType": "BEST_FIT"},
+    ]
+
+
+def _post_lookup(url, payload):
+    """POSTs one lookup payload, handling the 401-refresh-and-retry-once
+    dance. Returns the parsed JSON body. Raises DatApiError on HTTP-level
+    failure (this is NOT where a per-lane 'Rate not found' shows up - that
+    comes back as 200 with an errors array inside rateResponses[0].response,
+    handled by the caller via _extract_rate)."""
+    try:
+        resp = requests.post(url, json=payload, headers=_headers(), timeout=10)
+    except requests.RequestException as e:
+        raise DatApiError(f"DAT request failed: {e}") from e
+
+    if resp.status_code == 401:
+        logger.info("DAT get_rate: got 401, forcing token refresh and retrying once")
+        _individual_token_cache.clear()
+        try:
+            resp = requests.post(url, json=payload, headers=_headers(force_refresh_token=True), timeout=10)
+        except requests.RequestException as e:
+            raise DatApiError(f"DAT request failed: {e}") from e
+
+    if resp.status_code >= 400:
+        raise DatApiError(f"DAT API returned {resp.status_code}: {resp.text[:300]}")
+
+    return resp.json()
+
+
 def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rate_type=None):
     """Looks up a linehaul rate from the DAT Rateview API for a single lane.
 
-    Returns a normalized rate dict, or None if the lane couldn't be
-    resolved to a city+state pair, or DAT had no rate for it.
+    Tries a ladder of escalation settings from tightest (most comparable to
+    the portal UI) to loosest (BEST_FIT, which almost always returns
+    something if the lane has any data at all). Returns the first one that
+    comes back with an actual rate.
 
-    Raises DatApiError if the integration isn't configured or the HTTP
-    call itself fails - see the class docstring for how to handle that.
+    Returns a normalized rate dict, or None if the lane couldn't be
+    resolved to a city+state pair, or DAT had no rate for it at any
+    escalation setting.
+
+    Raises DatApiError if the integration isn't configured or an HTTP call
+    itself fails - see the class docstring for how to handle that.
     """
     origin = build_location(origin_text, geo_lookup)
     destination = build_location(destination_text, geo_lookup)
@@ -363,62 +432,35 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
 
     equipment = equipment or os.environ.get("DAT_DEFAULT_EQUIPMENT", "VAN")
     rate_type = rate_type or os.environ.get("DAT_DEFAULT_RATE_TYPE", "SPOT")
-
-    # BEST_FIT lets DAT pick whatever area/timeframe combination it thinks
-    # fits, which doesn't reliably match what the portal UI shows for the
-    # same lane. Allow pinning a specific area/timeframe instead so results
-    # are at least reproducible and comparable against the portal.
-    #
-    # NOTE: per DAT's own schema, non-BEST_FIT escalation types are "only
-    # available for Combo Premium level subscribers" - this may 403 if the
-    # account isn't on that tier. If it does, DAT_ESCALATION_MODE can be
-    # set back to "BEST_FIT" to revert without a code change.
-    escalation_mode = os.environ.get("DAT_ESCALATION_MODE", "SPECIFIC_AREA_TYPE_AND_SPECIFIC_TIME_FRAME")
-    if escalation_mode == "BEST_FIT":
-        target_escalation = {"escalationType": "BEST_FIT"}
-    else:
-        target_escalation = {
-            "escalationType": escalation_mode,
-            "specificTimeFrame": os.environ.get("DAT_ESCALATION_TIMEFRAME", "3_DAYS"),
-            "specificAreaType": os.environ.get("DAT_ESCALATION_AREA_TYPE", "3_DIGIT_ZIP"),
-        }
-
-    payload = [{
-        "origin": origin,
-        "destination": destination,
-        "rateType": rate_type,
-        "equipment": equipment,
-        "includeMyRate": False,
-        "targetEscalation": target_escalation,
-    }]
-
-    logger.info("DAT get_rate: calling /v1/lookups for %s -> %s", origin, destination)
-
     url = f"{_base_url()}{DAT_LOOKUPS_PATH}"
-    try:
-        resp = requests.post(url, json=payload, headers=_headers(), timeout=10)
-    except requests.RequestException as e:
-        raise DatApiError(f"DAT request failed: {e}") from e
 
-    if resp.status_code == 401:
-        # Individual token may have expired/been revoked server-side even
-        # though our cache thought it was still valid - force a fresh
-        # org -> individual token exchange and retry exactly once.
-        logger.info("DAT get_rate: got 401, forcing token refresh and retrying once")
-        _individual_token_cache.clear()
-        try:
-            resp = requests.post(url, json=payload, headers=_headers(force_refresh_token=True), timeout=10)
-        except requests.RequestException as e:
-            raise DatApiError(f"DAT request failed: {e}") from e
+    for target_escalation in _escalation_ladder():
+        payload = [{
+            "origin": origin,
+            "destination": destination,
+            "rateType": rate_type,
+            "equipment": equipment,
+            "includeMyRate": False,
+            "targetEscalation": target_escalation,
+        }]
 
-    if resp.status_code >= 400:
-        raise DatApiError(f"DAT API returned {resp.status_code}: {resp.text[:300]}")
+        logger.info(
+            "DAT get_rate: calling /v1/lookups for %s -> %s (escalation=%s)",
+            origin, destination, target_escalation,
+        )
 
-    data = resp.json()
-    logger.info("DAT get_rate: raw response for %s -> %s: %s", origin, destination, data)
-    entries = data.get("rateResponses") or []
-    if not entries:
-        logger.warning("DAT get_rate: response had no rateResponses entries: %s", data)
-        return None
+        data = _post_lookup(url, payload)
+        logger.info("DAT get_rate: raw response for %s -> %s: %s", origin, destination, data)
+        entries = data.get("rateResponses") or []
+        if not entries:
+            logger.warning("DAT get_rate: response had no rateResponses entries: %s", data)
+            continue
 
-    return _extract_rate(entries[0])
+        rate = _extract_rate(entries[0])
+        if rate is not None:
+            return rate
+        # _extract_rate already logged why (per-lane error or missing rate)
+        # - fall through and try the next, looser escalation setting.
+
+    logger.warning("DAT get_rate: no rate found for %s -> %s at any escalation setting", origin, destination)
+    return None
