@@ -26,7 +26,7 @@ export default function LaneDecreasePanel() {
       <div className="mb-4">
         <h2 className="font-display text-lg text-textPrimary">Lane Load Decreases</h2>
         <p className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          All companies · previous two completed months · 20%–50% decrease
+          All companies · previous two completed months · over 30% decrease · largest first
         </p>
       </div>
 
@@ -35,7 +35,7 @@ export default function LaneDecreasePanel() {
         <div className="text-textSecondary text-sm py-10 text-center">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="text-textSecondary text-sm py-10 text-center">
-          No lanes decreased between 20% and 50% over these two months.
+          No lanes decreased by more than 30% over these two months.
         </div>
       ) : (
         <div className="overflow-x-auto">

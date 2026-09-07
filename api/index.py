@@ -175,7 +175,7 @@ async def import_report(file: UploadFile = File(...), user=Depends(auth.get_curr
         raise HTTPException(status_code=400, detail="No load rows found in that file.")
 
     try:
-        inserted, matched_existing = db.insert_new_shipment_records(records)
+        inserted, updated = db.insert_new_shipment_records(records)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database import error: {e}")
 
@@ -184,7 +184,7 @@ async def import_report(file: UploadFile = File(...), user=Depends(auth.get_curr
     return {
         "parsed": len(records),
         "inserted": inserted,
-        "alreadyInDb": matched_existing,
+        "updated": updated,
         "companies": companies,
     }
 
@@ -257,8 +257,8 @@ def insights_lane_decreases(user=Depends(auth.get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
 
-    # This report is specifically for meaningful but non-total lane declines.
-    rows = [row for row in rows if 20 <= row["pctDecrease"] <= 50]
+    # Show every meaningful lane decline, ordered largest percentage first.
+    rows = [row for row in rows if row["pctDecrease"] > 30]
     return {"startDate": str(start_date), "endDate": str(end_date), "rows": rows}
 
 

@@ -67,9 +67,8 @@ export default function ImportPage() {
         <div className="text-textSecondary mt-1 text-sm max-w-[60ch]">
           Upload the raw, uncleaned report — the one still grouped by customer
           section. It'll be flattened into rows, each tagged with its company
-          name. Loads that aren't already in the database get added; loads
-          that already exist are left alone, except their Company gets
-          filled in if it was empty.
+          name. Loads that aren't already in the database get added. If a
+          load number already exists, this report replaces its stored data.
         </div>
       </div>
 
@@ -97,7 +96,7 @@ export default function ImportPage() {
           <div className="grid grid-cols-3 gap-4 mb-4">
             <Stat label="Rows Parsed" value={result.parsed} />
             <Stat label="New Rows Added" value={result.inserted} />
-            <Stat label="Already In DB" value={result.alreadyInDb} />
+            <Stat label="Existing Rows Updated" value={result.updated} />
           </div>
           {result.companies.length > 0 && (
             <div>

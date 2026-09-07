@@ -42,7 +42,7 @@ export type LookupResponse = {
 export type ImportResult = {
   parsed: number;
   inserted: number;
-  alreadyInDb: number;
+  updated: number;
   companies: string[];
 };
 

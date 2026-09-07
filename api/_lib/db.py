@@ -197,9 +197,15 @@ def insert_new_shipment_records(records):
         return name.replace("%", "%%")
 
     table_q = f'"{TABLE_NAME}"'
-    company_q = f'"{esc(COL_COMPANY)}"'
     key_q = f'"{esc(COL_LOAD_NUM)}"'
     cols_q = ", ".join(f'"{esc(c)}"' for c in col_names)
+    # A repeated load number represents a corrected version of an existing
+    # load. Replace every imported field, not just the company name.
+    update_assignments = ", ".join(
+        f'"{esc(column)}" = EXCLUDED."{esc(column)}"'
+        for column in col_names
+        if column != COL_LOAD_NUM
+    )
 
     inserted = 0
     matched_existing = 0
@@ -223,7 +229,7 @@ def insert_new_shipment_records(records):
                 INSERT INTO {table_q} ({cols_q})
                 VALUES {row_placeholders}
                 ON CONFLICT ({key_q}) DO UPDATE SET
-                    {company_q} = COALESCE({table_q}.{company_q}, EXCLUDED.{company_q})
+                    {update_assignments}
                 RETURNING (xmax = 0) AS is_new
             '''
 

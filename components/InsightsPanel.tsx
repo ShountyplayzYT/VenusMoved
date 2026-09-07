@@ -38,7 +38,12 @@ function makeCustomerRows(rows: CustomerMonthlyLoadRow[], months: string[]): Cus
         pctDecrease: oldCount > 0 && decreaseCount > 0 ? (decreaseCount / oldCount) * 100 : null,
       };
     })
-    .sort((a, b) => a.company.localeCompare(b.company));
+    .sort(
+      (a, b) =>
+        (b.pctDecrease ?? -1) - (a.pctDecrease ?? -1) ||
+        b.decreaseCount - a.decreaseCount ||
+        a.company.localeCompare(b.company)
+    );
 }
 
 export default function InsightsPanel() {
