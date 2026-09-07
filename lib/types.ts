@@ -54,6 +54,7 @@ export type CustomerMonthlyLoadRow = {
 
 export type CustomerMonthlyLoadsResponse = {
   startDate: string;
+  endDate: string;
   rows: CustomerMonthlyLoadRow[];
 };
 
@@ -87,4 +88,15 @@ export type LaneLoadChangesResponse = {
   company: string;
   threshold: number;
   rows: LaneLoadChangeRow[];
+};
+
+export type AllLaneLoadChangeRow = LaneLoadChangeRow & {
+  company: string;
+  decreaseCount: number;
+};
+
+export type AllLaneLoadChangesResponse = {
+  startDate: string;
+  endDate: string;
+  rows: AllLaneLoadChangeRow[];
 };

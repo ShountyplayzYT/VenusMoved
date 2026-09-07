@@ -191,28 +191,30 @@ async def import_report(file: UploadFile = File(...), user=Depends(auth.get_curr
 
 # -------------------------------------------------------------- insights ----
 
-INSIGHTS_MONTHS_BACK = 6
+def _insights_month_range() -> tuple[date, date]:
+    """The two most recently completed calendar months.
 
-
-def _insights_start_date() -> date:
-    # relativedelta does proper calendar-month math (unlike timedelta,
-    # which has no notion of a "month").
-    return date.today() - relativedelta(months=INSIGHTS_MONTHS_BACK)
+    For example, when today is September 7 this returns July 1 through
+    September 1, covering July and August while excluding the partial
+    current month.
+    """
+    end_date = date.today().replace(day=1)
+    return end_date - relativedelta(months=2), end_date
 
 
 @app.get("/api/insights/customer-loads")
 def insights_customer_loads(user=Depends(auth.get_current_user)):
-    start_date = _insights_start_date()
+    start_date, end_date = _insights_month_range()
     try:
-        rows = db.get_monthly_loads_by_customer(start_date)
+        rows = db.get_monthly_loads_by_customer(start_date, end_date)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
-    return {"startDate": str(start_date), "rows": rows}
+    return {"startDate": str(start_date), "endDate": str(end_date), "rows": rows}
 
 
 @app.get("/api/insights/customers")
 def insights_customers(user=Depends(auth.get_current_user)):
-    start_date = _insights_start_date()
+    start_date, _ = _insights_month_range()
     try:
         customers = db.get_customers_with_recent_loads(start_date)
     except Exception as e:
@@ -224,7 +226,7 @@ def insights_customers(user=Depends(auth.get_current_user)):
 def insights_customer_lanes(company: str, user=Depends(auth.get_current_user)):
     if not company.strip():
         raise HTTPException(status_code=400, detail="A customer must be selected.")
-    start_date = _insights_start_date()
+    start_date, _ = _insights_month_range()
     try:
         rows = db.get_monthly_loads_by_lane(company, start_date)
     except Exception as e:
@@ -238,13 +240,26 @@ def insights_customer_lane_changes(
 ):
     if not company.strip():
         raise HTTPException(status_code=400, detail="A customer must be selected.")
-    start_date = _insights_start_date()
+    start_date, _ = _insights_month_range()
     try:
         rows = db.get_lane_load_changes(company, start_date)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
     filtered = [r for r in rows if r["pctDecrease"] >= threshold]
     return {"startDate": str(start_date), "company": company, "threshold": threshold, "rows": filtered}
+
+
+@app.get("/api/insights/lane-decreases")
+def insights_lane_decreases(user=Depends(auth.get_current_user)):
+    start_date, end_date = _insights_month_range()
+    try:
+        rows = db.get_lane_load_changes_all(start_date, end_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+
+    # This report is specifically for meaningful but non-total lane declines.
+    rows = [row for row in rows if 20 <= row["pctDecrease"] <= 50]
+    return {"startDate": str(start_date), "endDate": str(end_date), "rows": rows}
 
 
 @app.exception_handler(Exception)

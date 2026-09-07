@@ -1,4 +1,5 @@
 import type {
+  AllLaneLoadChangesResponse,
   CustomerMonthlyLoadsResponse,
   ImportResult,
   InsightsCustomersResponse,
@@ -88,6 +89,11 @@ export async function getLaneLoadChanges(
     { credentials: "same-origin" }
   );
   return handle<LaneLoadChangesResponse>(res);
+}
+
+export async function getAllLaneLoadChanges(): Promise<AllLaneLoadChangesResponse> {
+  const res = await fetch("/api/insights/lane-decreases", { credentials: "same-origin" });
+  return handle<AllLaneLoadChangesResponse>(res);
 }
 
 export async function importReport(file: File): Promise<ImportResult> {

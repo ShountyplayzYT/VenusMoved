@@ -255,8 +255,8 @@ def get_customers_with_recent_loads(start_date):
     return [r[0] for r in rows]
 
 
-def get_monthly_loads_by_customer(start_date):
-    """Monthly load counts per customer (company) since start_date.
+def get_monthly_loads_by_customer(start_date, end_date):
+    """Monthly load counts per customer (company) within a date range.
     Months are bucketed calendar-month via Postgres' date_trunc('month', ...)."""
     with get_conn() as conn, conn.cursor() as cur:
         query = f'''
@@ -265,12 +265,13 @@ def get_monthly_loads_by_customer(start_date):
                 COUNT(*) AS load_count
             FROM "{TABLE_NAME}"
             WHERE "{COL_SHIP_DATE}" >= %s
+            AND "{COL_SHIP_DATE}" < %s
             AND "{COL_COMPANY}" IS NOT NULL
             AND "{COL_COMPANY}" <> ''
             GROUP BY company, month_start
             ORDER BY company, month_start
         '''
-        cur.execute(query, (start_date,))
+        cur.execute(query, (start_date, end_date))
         rows = cur.fetchall()
 
     return [
@@ -334,6 +335,56 @@ def get_lane_load_changes(company, start_date):
             })
 
     results.sort(key=lambda r: r["pctDecrease"], reverse=True)
+    return results
+
+
+def get_lane_load_changes_all(start_date, end_date):
+    """Load declines for every company and lane in the supplied two-month window."""
+    with get_conn() as conn, conn.cursor() as cur:
+        query = f'''
+            SELECT "{COL_COMPANY}" AS company,
+                "{COL_ORIGIN}" AS origin,
+                "{COL_DEST}" AS destination,
+                date_trunc('month', "{COL_SHIP_DATE}")::date AS month_start,
+                COUNT(*) AS load_count
+            FROM "{TABLE_NAME}"
+            WHERE "{COL_SHIP_DATE}" >= %s
+            AND "{COL_SHIP_DATE}" < %s
+            AND "{COL_COMPANY}" IS NOT NULL
+            AND "{COL_COMPANY}" <> ''
+            GROUP BY company, origin, destination, month_start
+            ORDER BY company, origin, destination, month_start
+        '''
+        cur.execute(query, (start_date, end_date))
+        rows = cur.fetchall()
+
+    by_lane = {}
+    for company, origin, destination, month_start, load_count in rows:
+        lane = f"{origin or 'Unknown'} → {destination or 'Unknown'}"
+        by_lane.setdefault((company, lane), []).append((str(month_start), load_count))
+
+    results = []
+    for (company, lane), points in by_lane.items():
+        points.sort(key=lambda point: point[0])
+        if len(points) != 2:
+            continue
+        (old_month, old_count), (new_month, new_count) = points
+        if old_count <= 0 or new_count >= old_count:
+            continue
+        decrease_count = old_count - new_count
+        pct_decrease = decrease_count / old_count * 100
+        results.append({
+            "company": company,
+            "lane": lane,
+            "oldMonth": old_month,
+            "newMonth": new_month,
+            "oldCount": old_count,
+            "newCount": new_count,
+            "decreaseCount": decrease_count,
+            "pctDecrease": round(pct_decrease, 1),
+        })
+
+    results.sort(key=lambda row: (row["pctDecrease"], row["decreaseCount"]), reverse=True)
     return results
 
 
