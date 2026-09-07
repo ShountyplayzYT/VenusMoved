@@ -6,7 +6,6 @@ import Link from "next/link";
 import { getMe, logout, lookup } from "@/lib/api";
 import type { LookupResponse, User } from "@/lib/types";
 import AudioRecorder from "@/components/AudioRecorder";
-import { correctCityNames } from "@/components/Correctcitynames";
 import ResultsPanel from "@/components/ResultsPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 
@@ -53,12 +52,6 @@ export default function HomePage() {
     } finally {
       setProcessing(false);
     }
-  }
-
-  function handleVoiceTranscript(transcript: string) {
-    // The same normalized lane is used for the historical lookup and DAT,
-    // ensuring DAT receives canonical City, ST values from voice input.
-    setLaneText(correctCityNames(transcript));
   }
 
   async function handleLogout() {
@@ -126,7 +119,7 @@ export default function HomePage() {
       {tab === "lookup" ? (
         <>
           <div className="flex justify-center mb-6">
-            <AudioRecorder onTranscriptChange={handleVoiceTranscript} />
+            <AudioRecorder onTranscriptChange={setLaneText} />
           </div>
 
           <div className="mb-6">

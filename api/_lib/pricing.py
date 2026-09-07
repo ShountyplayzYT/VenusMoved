@@ -17,7 +17,26 @@ US_STATE_ABBR = {
 }
 
 
-def parse_lane_text(client, lane_text):
+def parse_lane_text(client, lane_text, require_states=False):
+    response_shape = (
+        '{"origin": "City, ST", "destination": "City, ST"}'
+        if require_states
+        else
+        '{"origin": "CityName", "destination": "CityName"}'
+    )
+    state_instruction = (
+        "For each city, also determine its most likely US state and return "
+        'the location as "City, ST". This is required for a DAT rate lookup. '
+        "Use the complete spoken lane to resolve phonetic or misspelled city "
+        "names before choosing the state."
+        if require_states
+        else
+        "If a state IS spoken for a city (as a full name like \"New Jersey\" "
+        "or an abbreviation like \"NJ\"), format that city as \"City, ST\" "
+        "using the standard 2-letter USPS abbreviation (e.g. \"Sayreville, "
+        "NJ\"). If no state was spoken for a city, return just the city name "
+        "with no state and no trailing comma."
+    )
     prompt = (
         f"The following text describes a shipment lane, in the format "
         f"'CityA to CityB': \"{lane_text}\". "
@@ -28,13 +47,9 @@ def parse_lane_text(client, lane_text):
         "mentioned as the DESTINATION. Mostly what happens, is that real words are heard. Remember. It is always a city.  "
         "Using your own knowledge of real US city names, correct each city "
         "to its most likely intended spelling. You may guess if you think it must be this.  "
-        "If a state IS spoken for a city (as a full name like \"New Jersey\" "
-        "or an abbreviation like \"NJ\"), format that city as \"City, ST\" "
-        "using the standard 2-letter USPS abbreviation (e.g. \"Sayreville, "
-        "NJ\"). If no state was spoken for a city, return just the city name "
-        "with no state and no trailing comma. "
+        f"{state_instruction} "
         "Respond with ONLY raw JSON, no markdown, no code fences, in this "
-        'exact shape: {"origin": "CityName", "destination": "CityName"}'
+        f"exact shape: {response_shape}"
     )
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -43,6 +58,21 @@ def parse_lane_text(client, lane_text):
     text = response.choices[0].message.content.strip()
     text = re.sub(r"^```(json)?|```$", "", text, flags=re.MULTILINE).strip()
     return json.loads(text)
+
+
+def resolve_dat_lane(client, lane_text, parsed_lane):
+    """Return DAT-ready city/state locations using the full lane resolver.
+
+    The normal lookup intentionally preserves an omitted state. DAT cannot:
+    it requires one. If either side has no state, run the same city-correction
+    algorithm again against the complete spoken lane, this time requiring both
+    city/state pairs. This avoids the weaker per-city state-only guess.
+    """
+    origin_city, origin_state = split_city_state(parsed_lane.get("origin"))
+    dest_city, dest_state = split_city_state(parsed_lane.get("destination"))
+    if origin_city and origin_state and dest_city and dest_state:
+        return parsed_lane
+    return parse_lane_text(client, lane_text, require_states=True)
 
 
 def guess_state_abbr(client, city_name):

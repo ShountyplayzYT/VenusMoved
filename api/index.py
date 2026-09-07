@@ -119,12 +119,12 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
     # alongside whatever else we find, not just used as a last resort.
     dat_rate = None
     try:
+        dat_locations = pricing.resolve_dat_lane(client, payload.laneText, parsed)
         dat_rate = dat.get_rate(
-            parsed["origin"],
-            parsed["destination"],
-            geo_lookup=pricing.make_llm_geo_lookup(client),
+            dat_locations["origin"],
+            dat_locations["destination"],
         )
-    except dat.DatApiError as e:
+    except Exception as e:
         # Logged (not swallowed silently) so failures are visible in
         # Vercel function logs even though we still return a normal
         # response to the user with datRate: null.
