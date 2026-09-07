@@ -50,6 +50,12 @@ function normalizedDistance(a: string, b: string) {
   return levenshtein(a.toLowerCase(), b.toLowerCase()) / Math.max(a.length, b.length);
 }
 
+function normalizeSpokenWords(value: string): string {
+  // Punctuation retained by speech recognition should not prevent an
+  // otherwise exact city from matching its canonical entry.
+  return value.replace(/[^a-zA-Z\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 // Given a matched city name and (optionally) a state token spoken right
 // after it, pick the right entry when the city name is ambiguous
 // (e.g. "Cleveland" -> Cleveland, OH or Cleveland, TN).
@@ -73,7 +79,7 @@ export function correctCityNames(
   transcript: string,
   returnScore = false
 ): any {
-  const words = transcript.split(/\s+/).filter(Boolean);
+  const words = normalizeSpokenWords(transcript).split(/\s+/).filter(Boolean);
   const result: string[] = [];
   let totalDistance = 0;
   let i = 0;
@@ -96,7 +102,9 @@ export function correctCityNames(
         }
       }
 
-      const threshold = windowSize === 1 ? 0 : 0;
+      // Allow small phonetic/transcription errors without treating connector
+      // words such as "to" as cities.
+      const threshold = windowSize === 1 ? 0.34 : 0.28;
       if (bestDist < threshold) {
         // check if the next word(s) look like a state, e.g. "..., Ohio" or "..., OH"
         let consumed = windowSize;
