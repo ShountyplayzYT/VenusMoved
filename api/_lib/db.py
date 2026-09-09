@@ -183,9 +183,13 @@ def ensure_quote_schema():
                 customer TEXT NOT NULL,
                 quoted_rate NUMERIC(12, 2) NOT NULL,
                 quoted_by TEXT NOT NULL,
+                outcome TEXT NOT NULL DEFAULT 'pending',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
             """
+        )
+        cur.execute(
+            "ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL DEFAULT 'pending'"
         )
         conn.commit()
 
@@ -211,7 +215,7 @@ def get_quote_history(limit=250):
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT id, origin, destination, customer, quoted_rate, quoted_by, created_at
+            SELECT id, origin, destination, customer, quoted_rate, quoted_by, outcome, created_at
             FROM quote_history
             ORDER BY created_at DESC, id DESC
             LIMIT %s
@@ -223,24 +227,20 @@ def get_quote_history(limit=250):
         {
             "id": row[0], "origin": row[1], "destination": row[2],
             "customer": row[3], "quotedRate": float(row[4]),
-            "quotedBy": row[5], "createdAt": str(row[6]),
+            "quotedBy": row[5], "outcome": row[6], "createdAt": str(row[7]),
         }
         for row in rows
     ]
 
 
 def get_uninvoiced_loads(limit=250):
-    """Returns loads whose Line Haul amount is zero."""
+    """Returns loads whose Line Haul field is blank."""
     with get_conn() as conn, conn.cursor() as cur:
         query = f'''
             SELECT "{COL_LOAD_NUM}", "{COL_COMPANY}", "{COL_ORIGIN}", "{COL_DEST}",
                    "{COL_SHIP_DATE}", "{COL_LINE_HAUL}", "Revenue"
             FROM "{TABLE_NAME}"
-            WHERE CASE
-                WHEN regexp_replace(COALESCE("{COL_LINE_HAUL}"::text, ''), '[^0-9.-]', '', 'g')
-                    ~ '^-?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)$'
-                THEN regexp_replace(COALESCE("{COL_LINE_HAUL}"::text, ''), '[^0-9.-]', '', 'g')::numeric
-            END = 0
+            WHERE NULLIF(trim(COALESCE("{COL_LINE_HAUL}"::text, '')), '') IS NULL
             ORDER BY "{COL_SHIP_DATE}" DESC NULLS LAST, "{COL_LOAD_NUM}" DESC
             LIMIT %s
         '''
@@ -254,6 +254,29 @@ def get_uninvoiced_loads(limit=250):
         }
         for row in rows
     ]
+
+
+def update_quote_outcome(quote_id, outcome):
+    ensure_quote_schema()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE quote_history SET outcome = %s WHERE id = %s RETURNING id",
+            (outcome, quote_id),
+        )
+        if cur.fetchone() is None:
+            return False
+        conn.commit()
+    return True
+
+
+def delete_quote(quote_id):
+    ensure_quote_schema()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM quote_history WHERE id = %s RETURNING id", (quote_id,))
+        if cur.fetchone() is None:
+            return False
+        conn.commit()
+    return True
 
 
 def insert_new_shipment_records(records):

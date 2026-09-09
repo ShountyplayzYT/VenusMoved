@@ -130,6 +130,7 @@ export type Quote = {
   customer: string;
   quotedRate: number;
   quotedBy: string;
+  outcome: "pending" | "won" | "lost";
   createdAt: string;
 };
 

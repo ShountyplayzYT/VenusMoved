@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getQuoteHistory } from "@/lib/api";
+import { deleteQuote, getQuoteHistory, setQuoteOutcome } from "@/lib/api";
 import type { Quote } from "@/lib/types";
 
 type Filters = { customer: string; from: string; to: string };
@@ -17,6 +17,7 @@ export default function QuoteHistoryPanel({ refreshKey }: { refreshKey: number }
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -41,6 +42,19 @@ export default function QuoteHistoryPanel({ refreshKey }: { refreshKey: number }
 
   function search() { setApplied({ ...draft }); }
   function clear() { setDraft(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); }
+  async function setOutcome(quoteId: number, outcome: "won" | "lost") {
+    setUpdatingId(quoteId); setError(null);
+    try { await setQuoteOutcome(quoteId, outcome); setQuotes((rows) => rows.map((quote) => quote.id === quoteId ? { ...quote, outcome } : quote)); }
+    catch (err: any) { setError(err.message || "Couldn't update quote"); }
+    finally { setUpdatingId(null); }
+  }
+  async function remove(quoteId: number) {
+    if (!window.confirm("Delete this quote? This cannot be undone.")) return;
+    setUpdatingId(quoteId); setError(null);
+    try { await deleteQuote(quoteId); setQuotes((rows) => rows.filter((quote) => quote.id !== quoteId)); }
+    catch (err: any) { setError(err.message || "Couldn't delete quote"); }
+    finally { setUpdatingId(null); }
+  }
 
   return (
     <section className="rounded-2xl border border-border bg-panel p-5">
@@ -62,7 +76,11 @@ export default function QuoteHistoryPanel({ refreshKey }: { refreshKey: number }
       {error && <div className="badge badge-unavailable mb-3">{error}</div>}
       {loading ? <div className="text-textSecondary text-sm py-10 text-center">Loading…</div>
       : filtered.length === 0 ? <div className="text-textSecondary text-sm py-10 text-center">No quotes match these filters.</div>
-      : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-textSecondary text-xs uppercase"><th className="py-1 pr-3">Date</th><th className="py-1 pr-3">Company</th><th className="py-1 pr-3">Origin</th><th className="py-1 pr-3">Destination</th><th className="py-1 pr-3">Quoted Rate</th><th className="py-1 pr-3">Quoted By</th></tr></thead><tbody>{filtered.map((quote) => <tr key={quote.id} className="border-t border-border"><td className="py-1.5 pr-3">{new Date(quote.createdAt).toLocaleDateString()}</td><td className="py-1.5 pr-3">{quote.customer}</td><td className="py-1.5 pr-3">{quote.origin}</td><td className="py-1.5 pr-3">{quote.destination}</td><td className="py-1.5 pr-3 text-teal">{money(quote.quotedRate)}</td><td className="py-1.5 pr-3">{quote.quotedBy}</td></tr>)}</tbody></table></div>}
+      : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-textSecondary text-xs uppercase"><th className="py-1 pr-3">Date</th><th className="py-1 pr-3">Company</th><th className="py-1 pr-3">Origin</th><th className="py-1 pr-3">Destination</th><th className="py-1 pr-3">Quoted Rate</th><th className="py-1 pr-3">Quoted By</th><th className="py-1 pr-3">Actions</th></tr></thead><tbody>{filtered.map((quote) => {
+        const rowColor = quote.outcome === "won" ? "bg-teal/15" : quote.outcome === "lost" ? "bg-red/15" : "";
+        const busy = updatingId === quote.id;
+        return <tr key={quote.id} className={`border-t border-border ${rowColor}`}><td className="py-1.5 pr-3">{new Date(quote.createdAt).toLocaleDateString()}</td><td className="py-1.5 pr-3">{quote.customer}</td><td className="py-1.5 pr-3">{quote.origin}</td><td className="py-1.5 pr-3">{quote.destination}</td><td className="py-1.5 pr-3 text-teal">{money(quote.quotedRate)}</td><td className="py-1.5 pr-3">{quote.quotedBy}</td><td className="py-1.5 pr-3"><div className="flex gap-2"><button disabled={busy} onClick={() => setOutcome(quote.id, "won")} className="rounded bg-teal px-2 py-1 text-xs font-semibold text-[#071412] disabled:opacity-60">Win</button><button disabled={busy} onClick={() => setOutcome(quote.id, "lost")} className="rounded bg-red px-2 py-1 text-xs font-semibold text-white disabled:opacity-60">Loss</button><button disabled={busy} onClick={() => remove(quote.id)} className="rounded border border-red/70 px-2 py-1 text-xs text-red disabled:opacity-60">Delete</button></div></td></tr>;
+      })}</tbody></table></div>}
     </section>
   );
 }

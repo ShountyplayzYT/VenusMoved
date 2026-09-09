@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Literal, Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -22,3 +22,7 @@ class QuoteCreateRequest(BaseModel):
     destination: str
     customer: str
     quotedRate: float = Field(gt=0)
+
+
+class QuoteOutcomeRequest(BaseModel):
+    outcome: Literal["won", "lost"]

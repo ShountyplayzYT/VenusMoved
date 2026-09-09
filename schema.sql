@@ -51,5 +51,8 @@ CREATE TABLE IF NOT EXISTS quote_history (
     customer TEXT NOT NULL,
     quoted_rate NUMERIC(12, 2) NOT NULL,
     quoted_by TEXT NOT NULL,
+    outcome TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL DEFAULT 'pending';

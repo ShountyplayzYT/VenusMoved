@@ -12,7 +12,7 @@ from fastapi import FastAPI, Depends, HTTPException, Response, UploadFile, File
 from openai import OpenAI
 
 from _lib import db, auth, geocode, pricing, importer, dat
-from _lib.models import SignupRequest, LoginRequest, LookupRequest, QuoteCreateRequest
+from _lib.models import SignupRequest, LoginRequest, LookupRequest, QuoteCreateRequest, QuoteOutcomeRequest
 
 logger = logging.getLogger("linehaul.api")
 
@@ -272,7 +272,7 @@ def insights_uninvoiced_loads(user=Depends(auth.get_current_user)):
         rows = db.get_uninvoiced_loads()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
-    return {"criteria": "Line Haul = 0", "rows": rows}
+    return {"criteria": "Line Haul is blank", "rows": rows}
 
 
 # ---------------------------------------------------------------- quotes ----
@@ -297,6 +297,28 @@ def quote_history(user=Depends(auth.get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not load quote history: {e}")
     return {"rows": rows}
+
+
+@app.patch("/api/quotes/{quote_id}/outcome")
+def update_quote_outcome(quote_id: int, payload: QuoteOutcomeRequest, user=Depends(auth.get_current_user)):
+    try:
+        updated = db.update_quote_outcome(quote_id, payload.outcome)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not update quote: {e}")
+    if not updated:
+        raise HTTPException(status_code=404, detail="Quote not found.")
+    return {"ok": True, "outcome": payload.outcome}
+
+
+@app.delete("/api/quotes/{quote_id}")
+def delete_quote(quote_id: int, user=Depends(auth.get_current_user)):
+    try:
+        deleted = db.delete_quote(quote_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not delete quote: {e}")
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Quote not found.")
+    return {"ok": True}
 
 
 @app.exception_handler(Exception)

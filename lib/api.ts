@@ -6,7 +6,6 @@ import type {
   LaneLoadChangesResponse,
   LaneMonthlyLoadsResponse,
   LookupResponse,
-  Quote,
   QuoteHistoryResponse,
   UninvoicedLoadsResponse,
   User,
@@ -122,6 +121,21 @@ export async function createQuote(input: {
 export async function getQuoteHistory(): Promise<QuoteHistoryResponse> {
   const res = await fetch("/api/quotes", { credentials: "same-origin" });
   return handle<QuoteHistoryResponse>(res);
+}
+
+export async function setQuoteOutcome(quoteId: number, outcome: "won" | "lost"): Promise<void> {
+  const res = await fetch(`/api/quotes/${quoteId}/outcome`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ outcome }),
+  });
+  await handle(res);
+}
+
+export async function deleteQuote(quoteId: number): Promise<void> {
+  const res = await fetch(`/api/quotes/${quoteId}`, { method: "DELETE", credentials: "same-origin" });
+  await handle(res);
 }
 
 export async function importReport(file: File): Promise<ImportResult> {
