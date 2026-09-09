@@ -230,13 +230,17 @@ def get_quote_history(limit=250):
 
 
 def get_uninvoiced_loads(limit=250):
-    """Returns loads identified in the source report as Venus Logistics."""
+    """Returns loads whose Line Haul amount is zero."""
     with get_conn() as conn, conn.cursor() as cur:
         query = f'''
             SELECT "{COL_LOAD_NUM}", "{COL_COMPANY}", "{COL_ORIGIN}", "{COL_DEST}",
                    "{COL_SHIP_DATE}", "{COL_LINE_HAUL}", "Revenue"
             FROM "{TABLE_NAME}"
-            WHERE lower(trim(COALESCE("{COL_COMPANY}", ''))) = 'venus logistics'
+            WHERE CASE
+                WHEN regexp_replace(COALESCE("{COL_LINE_HAUL}"::text, ''), '[^0-9.-]', '', 'g')
+                    ~ '^-?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)$'
+                THEN regexp_replace(COALESCE("{COL_LINE_HAUL}"::text, ''), '[^0-9.-]', '', 'g')::numeric
+            END = 0
             ORDER BY "{COL_SHIP_DATE}" DESC NULLS LAST, "{COL_LOAD_NUM}" DESC
             LIMIT %s
         '''

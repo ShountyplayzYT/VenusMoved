@@ -119,7 +119,7 @@ export type UninvoicedLoad = {
 };
 
 export type UninvoicedLoadsResponse = {
-  company: string;
+  criteria: string;
   rows: UninvoicedLoad[];
 };
 

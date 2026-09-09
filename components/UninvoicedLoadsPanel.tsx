@@ -25,7 +25,7 @@ export default function UninvoicedLoadsPanel() {
       <div className="mb-4">
         <h2 className="font-display text-lg text-textPrimary">Uninvoiced Loads</h2>
         <p className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          Company: Venus Logistics
+          Loads with Line Haul = $0
         </p>
       </div>
       {error && <div className="badge badge-unavailable mb-3">{error}</div>}

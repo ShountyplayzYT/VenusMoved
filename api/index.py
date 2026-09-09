@@ -272,7 +272,7 @@ def insights_uninvoiced_loads(user=Depends(auth.get_current_user)):
         rows = db.get_uninvoiced_loads()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
-    return {"company": "Venus Logistics", "rows": rows}
+    return {"criteria": "Line Haul = 0", "rows": rows}
 
 
 # ---------------------------------------------------------------- quotes ----
