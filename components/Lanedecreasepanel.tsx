@@ -24,9 +24,9 @@ export default function LaneDecreasePanel() {
   return (
     <div className="rounded-2xl border border-border bg-panel p-5">
       <div className="mb-4">
-        <h2 className="font-display text-lg text-textPrimary">Lane Load Decreases</h2>
+        <h2 className="font-display text-lg text-textPrimary">Lane Load Changes</h2>
         <p className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          All companies · previous two completed months · over 30% decrease · largest first
+          All companies · previous two completed months · over 30% change · largest first
         </p>
       </div>
 
@@ -35,7 +35,7 @@ export default function LaneDecreasePanel() {
         <div className="text-textSecondary text-sm py-10 text-center">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="text-textSecondary text-sm py-10 text-center">
-          No lanes decreased by more than 30% over these two months.
+          No lanes changed by more than 30% over these two months.
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -48,8 +48,8 @@ export default function LaneDecreasePanel() {
                 <th className="py-1 pr-3">New Month</th>
                 <th className="py-1 pr-3">Prior Loads</th>
                 <th className="py-1 pr-3">New Loads</th>
-                <th className="py-1 pr-3">Decreased By</th>
-                <th className="py-1 pr-3">% Decrease</th>
+                <th className="py-1 pr-3">Load Change</th>
+                <th className="py-1 pr-3">% Change</th>
               </tr>
             </thead>
             <tbody>
@@ -61,8 +61,12 @@ export default function LaneDecreasePanel() {
                   <td className="py-1.5 pr-3">{formatMonth(row.newMonth)}</td>
                   <td className="py-1.5 pr-3">{row.oldCount}</td>
                   <td className="py-1.5 pr-3">{row.newCount}</td>
-                  <td className="py-1.5 pr-3 text-red">{row.decreaseCount} loads</td>
-                  <td className="py-1.5 pr-3 text-red">{row.pctDecrease.toFixed(1)}%</td>
+                  <td className={`py-1.5 pr-3 ${row.changeCount > 0 ? "text-teal" : "text-red"}`}>
+                    {row.changeCount > 0 ? "+" : ""}{row.changeCount} loads
+                  </td>
+                  <td className={`py-1.5 pr-3 ${row.pctChange > 0 ? "text-teal" : "text-red"}`}>
+                    {row.pctChange > 0 ? "+" : ""}{row.pctChange.toFixed(1)}%
+                  </td>
                 </tr>
               ))}
             </tbody>

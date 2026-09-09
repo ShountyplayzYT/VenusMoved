@@ -35,6 +35,7 @@ export type DatRate = {
 export type LookupResponse = {
   mode: "exact" | "state" | "dat" | "none";
   parsed: { origin: string; destination: string };
+  datParsed?: { origin: string; destination: string } | null;
   historical: ShipmentRecord[] | null;
   datRate?: DatRate | null;
 };
@@ -90,9 +91,15 @@ export type LaneLoadChangesResponse = {
   rows: LaneLoadChangeRow[];
 };
 
-export type AllLaneLoadChangeRow = LaneLoadChangeRow & {
+export type AllLaneLoadChangeRow = {
   company: string;
-  decreaseCount: number;
+  lane: string;
+  oldMonth: string;
+  newMonth: string;
+  oldCount: number;
+  newCount: number;
+  changeCount: number;
+  pctChange: number;
 };
 
 export type AllLaneLoadChangesResponse = {

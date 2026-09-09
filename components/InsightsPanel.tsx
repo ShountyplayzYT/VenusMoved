@@ -9,8 +9,8 @@ type CustomerLoadRow = {
   company: string;
   oldCount: number;
   newCount: number;
-  decreaseCount: number;
-  pctDecrease: number | null;
+  changeCount: number;
+  pctChange: number | null;
 };
 
 function formatMonth(iso: string) {
@@ -29,19 +29,19 @@ function makeCustomerRows(rows: CustomerMonthlyLoadRow[], months: string[]): Cus
     .map(([company, counts]) => {
       const oldCount = counts.get(months[0]) ?? 0;
       const newCount = counts.get(months[1]) ?? 0;
-      const decreaseCount = oldCount - newCount;
+      const changeCount = newCount - oldCount;
       return {
         company,
         oldCount,
         newCount,
-        decreaseCount,
-        pctDecrease: oldCount > 0 && decreaseCount > 0 ? (decreaseCount / oldCount) * 100 : null,
+        changeCount,
+        pctChange: oldCount > 0 ? (changeCount / oldCount) * 100 : null,
       };
     })
     .sort(
       (a, b) =>
-        (b.pctDecrease ?? -1) - (a.pctDecrease ?? -1) ||
-        b.decreaseCount - a.decreaseCount ||
+        Math.abs(b.pctChange ?? 0) - Math.abs(a.pctChange ?? 0) ||
+        Math.abs(b.changeCount) - Math.abs(a.changeCount) ||
         a.company.localeCompare(b.company)
     );
 }
@@ -94,8 +94,8 @@ export default function InsightsPanel() {
                   <th className="py-1 pr-3">Company</th>
                   <th className="py-1 pr-3">{monthLabels[0]} Loads</th>
                   <th className="py-1 pr-3">{monthLabels[1]} Loads</th>
-                  <th className="py-1 pr-3">Load Decrease</th>
-                  <th className="py-1 pr-3">% Decrease</th>
+                  <th className="py-1 pr-3">Load Change</th>
+                  <th className="py-1 pr-3">% Change</th>
                 </tr>
               </thead>
               <tbody>
@@ -104,11 +104,11 @@ export default function InsightsPanel() {
                     <td className="py-1.5 pr-3 text-textPrimary">{row.company}</td>
                     <td className="py-1.5 pr-3">{row.oldCount}</td>
                     <td className="py-1.5 pr-3">{row.newCount}</td>
-                    <td className={`py-1.5 pr-3 ${row.decreaseCount > 0 ? "text-red" : "text-textSecondary"}`}>
-                      {row.decreaseCount > 0 ? row.decreaseCount : "—"}
+                    <td className={`py-1.5 pr-3 ${row.changeCount > 0 ? "text-teal" : row.changeCount < 0 ? "text-red" : "text-textSecondary"}`}>
+                      {row.changeCount > 0 ? `+${row.changeCount}` : row.changeCount}
                     </td>
-                    <td className={`py-1.5 pr-3 ${row.pctDecrease != null ? "text-red" : "text-textSecondary"}`}>
-                      {row.pctDecrease != null ? `${row.pctDecrease.toFixed(1)}%` : "—"}
+                    <td className={`py-1.5 pr-3 ${row.pctChange != null ? row.pctChange > 0 ? "text-teal" : row.pctChange < 0 ? "text-red" : "text-textSecondary" : "text-textSecondary"}`}>
+                      {row.pctChange != null ? `${row.pctChange > 0 ? "+" : ""}${row.pctChange.toFixed(1)}%` : "—"}
                     </td>
                   </tr>
                 ))}

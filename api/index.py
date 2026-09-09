@@ -118,6 +118,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
     # of whether we already have our own historical data - it's shown
     # alongside whatever else we find, not just used as a last resort.
     dat_rate = None
+    dat_locations = None
     try:
         dat_locations = pricing.resolve_dat_lane(client, payload.laneText, parsed)
         dat_rate = dat.get_rate(
@@ -137,6 +138,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
             return {
                 "mode": "state",
                 "parsed": parsed,
+                "datParsed": dat_locations,
                 "historical": state_details,
                 "datRate": dat_rate,
             }
@@ -144,6 +146,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
         return {
             "mode": "dat" if dat_rate else "none",
             "parsed": parsed,
+            "datParsed": dat_locations,
             "historical": None,
             "datRate": dat_rate,
         }
@@ -152,6 +155,7 @@ def lookup(payload: LookupRequest, user=Depends(auth.get_current_user)):
     return {
         "mode": "exact",
         "parsed": parsed,
+        "datParsed": dat_locations,
         "historical": details,
         "datRate": dat_rate,
     }
@@ -257,8 +261,8 @@ def insights_lane_decreases(user=Depends(auth.get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {e}")
 
-    # Show every meaningful lane decline, ordered largest percentage first.
-    rows = [row for row in rows if row["pctDecrease"] > 30]
+    # Show meaningful increases and decreases, ordered by largest magnitude.
+    rows = [row for row in rows if abs(row["pctChange"]) > 30]
     return {"startDate": str(start_date), "endDate": str(end_date), "rows": rows}
 
 

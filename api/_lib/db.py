@@ -345,7 +345,7 @@ def get_lane_load_changes(company, start_date):
 
 
 def get_lane_load_changes_all(start_date, end_date):
-    """Load declines for every company and lane in the supplied two-month window."""
+    """Load changes for every company and lane in the supplied two-month window."""
     with get_conn() as conn, conn.cursor() as cur:
         query = f'''
             SELECT "{COL_COMPANY}" AS company,
@@ -375,10 +375,10 @@ def get_lane_load_changes_all(start_date, end_date):
         if len(points) != 2:
             continue
         (old_month, old_count), (new_month, new_count) = points
-        if old_count <= 0 or new_count >= old_count:
+        if old_count <= 0:
             continue
-        decrease_count = old_count - new_count
-        pct_decrease = decrease_count / old_count * 100
+        change_count = new_count - old_count
+        pct_change = change_count / old_count * 100
         results.append({
             "company": company,
             "lane": lane,
@@ -386,11 +386,11 @@ def get_lane_load_changes_all(start_date, end_date):
             "newMonth": new_month,
             "oldCount": old_count,
             "newCount": new_count,
-            "decreaseCount": decrease_count,
-            "pctDecrease": round(pct_decrease, 1),
+            "changeCount": change_count,
+            "pctChange": round(pct_change, 1),
         })
 
-    results.sort(key=lambda row: (row["pctDecrease"], row["decreaseCount"]), reverse=True)
+    results.sort(key=lambda row: (abs(row["pctChange"]), abs(row["changeCount"])), reverse=True)
     return results
 
 

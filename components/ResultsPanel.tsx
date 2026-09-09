@@ -23,33 +23,25 @@ function median(values: number[]): number | null {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function DatRateCard({ datRate, compact }: { datRate: NonNullable<LookupResponse["datRate"]>; compact?: boolean }) {
+function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate"]> }) {
   return (
-    <div className={compact ? "rounded-2xl border border-border bg-panel p-5" : "rounded-2xl border border-border bg-panel p-5 mb-4"}>
+    <section className="rounded-2xl border border-border bg-panel p-5 mb-4">
+      <h2 className="font-display text-lg text-textPrimary mb-4">DAT RateView</h2>
       <div className="mb-4">
         <div className="font-mono-brand text-3xl font-bold text-teal">
-          {moneyPerMile(datRate.perMileRateUsd)}
-          <span className="text-lg font-normal text-textTertiary">/mi</span>
+          {money(datRate.perTripRateUsd)}
         </div>
         <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          DAT Rateview Estimate · all-in with fuel
+          Per trip · DAT RateView estimate · all-in with fuel
           {datRate.rateType ? ` · ${datRate.rateType}` : ""}
         </div>
-        {datRate.fuelPerMileUsd != null && (
+        {datRate.perMileRateUsd != null && (
           <div className="text-textSecondary text-xs mt-1">
-            {moneyPerMile(datRate.perMileLinehaulUsd)} linehaul + {moneyPerMile(datRate.fuelPerMileUsd)} fuel
+            {moneyPerMile(datRate.perMileRateUsd)}/mi
           </div>
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-        <div>
-          <span className="text-textSecondary">Per trip: </span>
-          {money(datRate.perTripRateUsd)}
-        </div>
-        <div>
-          <span className="text-textSecondary">Range: </span>
-          {moneyPerMile(datRate.perMileLowUsd)} – {moneyPerMile(datRate.perMileHighUsd)}/mi
-        </div>
         <div>
           <span className="text-textSecondary">Distance: </span>
           {datRate.mileage != null ? `${datRate.mileage} mi` : "—"}
@@ -62,43 +54,52 @@ function DatRateCard({ datRate, compact }: { datRate: NonNullable<LookupResponse
           <span className="text-textSecondary">Companies: </span>
           {datRate.companies ?? "—"}
         </div>
-        <div>
-          <span className="text-textSecondary">Rate strength: </span>
-          {datRate.rateStrength ?? "—"}
-        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
 export default function ResultsPanel({ result }: { result: LookupResponse }) {
-  const { historical, datRate } = result;
+  const { historical, datRate, parsed, datParsed } = result;
+  const datLane = datParsed ?? parsed;
 
   const validRates = (historical || [])
     .map((d) => d.lineHaul)
     .filter((v): v is number => v !== null && v !== undefined);
   const medianRate = median(validRates);
 
-  if (!historical || historical.length === 0) {
-    if (datRate) {
-      // No shipment history at all, but we do have a DAT market estimate.
-      return <DatRateCard datRate={datRate} />;
-    }
-
-    return (
-      <div className="rounded-2xl border border-border bg-panel p-5">
-        <p className="text-textSecondary text-sm">No matching shipments found for this lane.</p>
-      </div>
-    );
-  }
-
   return (
     <>
+      <section className="rounded-2xl border border-border bg-panel p-5 mb-4">
+        <h2 className="font-display text-lg text-textPrimary mb-3">Final AI Locations</h2>
+        <p className="text-textSecondary text-sm mb-3">The exact origin and destination supplied to each lookup.</p>
+        <div className="grid gap-4 sm:grid-cols-2 text-sm">
+          <div className="rounded-md border border-border bg-panel2 p-3">
+            <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide mb-2">ITS Database</div>
+            <div><span className="text-textSecondary">Origin: </span><span className="text-textPrimary">{parsed.origin}</span></div>
+            <div><span className="text-textSecondary">Destination: </span><span className="text-textPrimary">{parsed.destination}</span></div>
+          </div>
+          <div className="rounded-md border border-border bg-panel2 p-3">
+            <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide mb-2">DAT RateView</div>
+            <div><span className="text-textSecondary">Origin: </span><span className="text-textPrimary">{datLane.origin}</span></div>
+            <div><span className="text-textSecondary">Destination: </span><span className="text-textPrimary">{datLane.destination}</span></div>
+          </div>
+        </div>
+      </section>
       {/* Always show the DAT market estimate alongside our own history,
           even when we found an exact or state-level match. */}
-      {datRate && <DatRateCard datRate={datRate} />}
+      {datRate ? <DatRateCard datRate={datRate} /> : (
+        <section className="rounded-2xl border border-border bg-panel p-5 mb-4">
+          <h2 className="font-display text-lg text-textPrimary mb-2">DAT RateView</h2>
+          <p className="text-textSecondary text-sm">No DAT market rate is available for this lane.</p>
+        </section>
+      )}
 
-      <div className="rounded-2xl border border-border bg-panel p-5">
+      <section className="rounded-2xl border border-border bg-panel p-5">
+        <h2 className="font-display text-lg text-textPrimary mb-4">ITS Historical Loads</h2>
+        {!historical || historical.length === 0 ? (
+          <p className="text-textSecondary text-sm">No matching ITS shipments found for this lane.</p>
+        ) : <>
         {medianRate !== null && (
           <div className="mb-4">
             <div className="font-mono-brand text-3xl font-bold text-teal">{money(medianRate)}</div>
@@ -141,7 +142,8 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
             </tbody>
           </table>
         </div>
-      </div>
+        </>}
+      </section>
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -9,11 +9,13 @@ declare global {
   }
 }
 
-export default function AudioRecorder({
-  onTranscriptChange,
-}: {
+export type AudioRecorderHandle = {
+  stop: () => void;
+};
+
+const AudioRecorder = forwardRef<AudioRecorderHandle, {
   onTranscriptChange: (text: string) => void;
-}) {
+}>(function AudioRecorder({ onTranscriptChange }, ref) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
@@ -69,9 +71,11 @@ export default function AudioRecorder({
   }
 
   function stop() {
-    recognitionRef.current?.stop();
+    if (listening) recognitionRef.current?.stop();
     setListening(false);
   }
+
+  useImperativeHandle(ref, () => ({ stop }));
 
   if (!supported) {
     return (
@@ -92,4 +96,6 @@ export default function AudioRecorder({
       <span className="text-2xl">{listening ? "⏹" : "🎙️"}</span>
     </button>
   );
-}
+});
+
+export default AudioRecorder;

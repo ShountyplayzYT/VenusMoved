@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getMe, logout, lookup } from "@/lib/api";
 import type { LookupResponse, User } from "@/lib/types";
-import AudioRecorder from "@/components/AudioRecorder";
+import AudioRecorder, { type AudioRecorderHandle } from "@/components/AudioRecorder";
 import ResultsPanel from "@/components/ResultsPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 
@@ -21,6 +21,7 @@ export default function HomePage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LookupResponse | null>(null);
+  const audioRecorderRef = useRef<AudioRecorderHandle>(null);
 
   useEffect(() => {
     getMe()
@@ -37,6 +38,7 @@ export default function HomePage() {
   }, [router]);
 
   async function handleProcess() {
+    audioRecorderRef.current?.stop();
     if (!laneText.trim()) {
       setError("No text to process.");
       return;
@@ -119,7 +121,7 @@ export default function HomePage() {
       {tab === "lookup" ? (
         <>
           <div className="flex justify-center mb-6">
-            <AudioRecorder onTranscriptChange={setLaneText} />
+            <AudioRecorder ref={audioRecorderRef} onTranscriptChange={setLaneText} />
           </div>
 
           <div className="mb-6">
@@ -134,7 +136,7 @@ export default function HomePage() {
               disabled={processing}
               className="rounded-md bg-gradient-to-b from-[#ffc633] to-amber px-4 py-2 font-bold text-[#14100a] disabled:opacity-60"
             >
-              {processing ? "Uploading..." : "Upload"}
+              {processing ? "Looking up..." : "Lookup"}
             </button>
           </div>
 
