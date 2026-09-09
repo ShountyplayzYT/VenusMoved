@@ -8,8 +8,10 @@ import type { LookupResponse, User } from "@/lib/types";
 import AudioRecorder, { type AudioRecorderHandle } from "@/components/AudioRecorder";
 import ResultsPanel from "@/components/ResultsPanel";
 import InsightsPanel from "@/components/InsightsPanel";
+import QuoteModal from "@/components/QuoteModal";
+import QuoteHistoryPanel from "@/components/QuoteHistoryPanel";
 
-type Tab = "lookup" | "insights";
+type Tab = "lookup" | "insights" | "quotes";
 
 export default function HomePage() {
   const router = useRouter();
@@ -22,6 +24,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LookupResponse | null>(null);
   const audioRecorderRef = useRef<AudioRecorderHandle>(null);
+  const [quoteDraft, setQuoteDraft] = useState<{ origin: string; destination: string; customer: string } | null>(null);
+  const [quoteRefreshKey, setQuoteRefreshKey] = useState(0);
 
   useEffect(() => {
     getMe()
@@ -100,6 +104,14 @@ export default function HomePage() {
           >
             Insights
           </button>
+          <button
+            onClick={() => setTab("quotes")}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === "quotes" ? "bg-panel3 text-textPrimary" : "text-textSecondary"
+            }`}
+          >
+            Quote History
+          </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -142,11 +154,14 @@ export default function HomePage() {
 
           {error && <div className="badge badge-unavailable mb-6">{error}</div>}
 
-          {result && <ResultsPanel result={result} />}
+          {result && <ResultsPanel result={result} onQuote={setQuoteDraft} />}
         </>
-      ) : (
+      ) : tab === "insights" ? (
         <InsightsPanel />
+      ) : (
+        <QuoteHistoryPanel refreshKey={quoteRefreshKey} />
       )}
+      {quoteDraft && <QuoteModal initial={quoteDraft} onClose={() => setQuoteDraft(null)} onSaved={() => setQuoteRefreshKey((key) => key + 1)} />}
     </main>
   );
 }

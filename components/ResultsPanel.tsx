@@ -59,7 +59,13 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
   );
 }
 
-export default function ResultsPanel({ result }: { result: LookupResponse }) {
+export default function ResultsPanel({
+  result,
+  onQuote,
+}: {
+  result: LookupResponse;
+  onQuote: (lane: { origin: string; destination: string; customer: string }) => void;
+}) {
   const { historical, datRate, parsed, datParsed } = result;
   const datLane = datParsed ?? parsed;
 
@@ -67,6 +73,7 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
     .map((d) => d.lineHaul)
     .filter((v): v is number => v !== null && v !== undefined);
   const medianRate = median(validRates);
+  const customer = historical?.find((load) => load.company)?.company ?? "";
 
   return (
     <>
@@ -85,6 +92,13 @@ export default function ResultsPanel({ result }: { result: LookupResponse }) {
             <div><span className="text-textSecondary">Destination: </span><span className="text-textPrimary">{datLane.destination}</span></div>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => onQuote({ origin: parsed.origin, destination: parsed.destination, customer })}
+          className="mt-4 rounded-md bg-gradient-to-b from-[#ffc633] to-amber px-4 py-2 text-sm font-bold text-[#14100a]"
+        >
+          Quoted
+        </button>
       </section>
       {/* Always show the DAT market estimate alongside our own history,
           even when we found an exact or state-level match. */}

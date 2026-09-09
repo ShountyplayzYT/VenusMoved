@@ -12,7 +12,7 @@ from fastapi import FastAPI, Depends, HTTPException, Response, UploadFile, File
 from openai import OpenAI
 
 from _lib import db, auth, geocode, pricing, importer, dat
-from _lib.models import SignupRequest, LoginRequest, LookupRequest
+from _lib.models import SignupRequest, LoginRequest, LookupRequest, QuoteCreateRequest
 
 logger = logging.getLogger("linehaul.api")
 
@@ -264,6 +264,39 @@ def insights_lane_decreases(user=Depends(auth.get_current_user)):
     # Show meaningful increases and decreases, ordered by largest magnitude.
     rows = [row for row in rows if abs(row["pctChange"]) > 30]
     return {"startDate": str(start_date), "endDate": str(end_date), "rows": rows}
+
+
+@app.get("/api/insights/uninvoiced-loads")
+def insights_uninvoiced_loads(user=Depends(auth.get_current_user)):
+    try:
+        rows = db.get_uninvoiced_loads()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+    return {"company": "Venus Logistics", "rows": rows}
+
+
+# ---------------------------------------------------------------- quotes ----
+
+@app.post("/api/quotes")
+def create_quote(payload: QuoteCreateRequest, user=Depends(auth.get_current_user)):
+    if not payload.origin.strip() or not payload.destination.strip() or not payload.customer.strip():
+        raise HTTPException(status_code=400, detail="Origin, destination, and customer are required.")
+    try:
+        quote = db.create_quote(
+            payload.origin, payload.destination, payload.customer, payload.quotedRate, user["email"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save quote: {e}")
+    return quote
+
+
+@app.get("/api/quotes")
+def quote_history(user=Depends(auth.get_current_user)):
+    try:
+        rows = db.get_quote_history()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not load quote history: {e}")
+    return {"rows": rows}
 
 
 @app.exception_handler(Exception)

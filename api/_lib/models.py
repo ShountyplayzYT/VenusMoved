@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SignupRequest(BaseModel):
@@ -15,3 +15,10 @@ class LoginRequest(BaseModel):
 
 class LookupRequest(BaseModel):
     laneText: str
+
+
+class QuoteCreateRequest(BaseModel):
+    origin: str
+    destination: str
+    customer: str
+    quotedRate: float = Field(gt=0)

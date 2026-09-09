@@ -43,3 +43,13 @@ BEGIN
         ADD CONSTRAINT shipmentsdb_load_unique UNIQUE ("Load #");
     END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS quote_history (
+    id BIGSERIAL PRIMARY KEY,
+    origin TEXT NOT NULL,
+    destination TEXT NOT NULL,
+    customer TEXT NOT NULL,
+    quoted_rate NUMERIC(12, 2) NOT NULL,
+    quoted_by TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

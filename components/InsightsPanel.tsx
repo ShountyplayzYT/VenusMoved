@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getCustomerMonthlyLoads } from "@/lib/api";
 import type { CustomerMonthlyLoadRow } from "@/lib/types";
 import LaneDecreasePanel from "./Lanedecreasepanel";
+import UninvoicedLoadsPanel from "./UninvoicedLoadsPanel";
 
 type CustomerLoadRow = {
   company: string;
@@ -119,6 +120,7 @@ export default function InsightsPanel() {
       </div>
 
       <LaneDecreasePanel />
+      <UninvoicedLoadsPanel />
     </div>
   );
 }

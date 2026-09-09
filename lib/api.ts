@@ -6,6 +6,9 @@ import type {
   LaneLoadChangesResponse,
   LaneMonthlyLoadsResponse,
   LookupResponse,
+  Quote,
+  QuoteHistoryResponse,
+  UninvoicedLoadsResponse,
   User,
 } from "./types";
 
@@ -94,6 +97,31 @@ export async function getLaneLoadChanges(
 export async function getAllLaneLoadChanges(): Promise<AllLaneLoadChangesResponse> {
   const res = await fetch("/api/insights/lane-decreases", { credentials: "same-origin" });
   return handle<AllLaneLoadChangesResponse>(res);
+}
+
+export async function getUninvoicedLoads(): Promise<UninvoicedLoadsResponse> {
+  const res = await fetch("/api/insights/uninvoiced-loads", { credentials: "same-origin" });
+  return handle<UninvoicedLoadsResponse>(res);
+}
+
+export async function createQuote(input: {
+  origin: string;
+  destination: string;
+  customer: string;
+  quotedRate: number;
+}): Promise<{ id: number; createdAt: string }> {
+  const res = await fetch("/api/quotes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+  return handle(res);
+}
+
+export async function getQuoteHistory(): Promise<QuoteHistoryResponse> {
+  const res = await fetch("/api/quotes", { credentials: "same-origin" });
+  return handle<QuoteHistoryResponse>(res);
 }
 
 export async function importReport(file: File): Promise<ImportResult> {

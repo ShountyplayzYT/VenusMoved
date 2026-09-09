@@ -172,6 +172,86 @@ def ensure_import_schema():
         conn.commit()
 
 
+def ensure_quote_schema():
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quote_history (
+                id BIGSERIAL PRIMARY KEY,
+                origin TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                customer TEXT NOT NULL,
+                quoted_rate NUMERIC(12, 2) NOT NULL,
+                quoted_by TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.commit()
+
+
+def create_quote(origin, destination, customer, quoted_rate, quoted_by):
+    ensure_quote_schema()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO quote_history (origin, destination, customer, quoted_rate, quoted_by)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id, created_at
+            """,
+            (origin.strip(), destination.strip(), customer.strip(), quoted_rate, quoted_by),
+        )
+        quote_id, created_at = cur.fetchone()
+        conn.commit()
+    return {"id": quote_id, "createdAt": str(created_at)}
+
+
+def get_quote_history(limit=250):
+    ensure_quote_schema()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, origin, destination, customer, quoted_rate, quoted_by, created_at
+            FROM quote_history
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+    return [
+        {
+            "id": row[0], "origin": row[1], "destination": row[2],
+            "customer": row[3], "quotedRate": float(row[4]),
+            "quotedBy": row[5], "createdAt": str(row[6]),
+        }
+        for row in rows
+    ]
+
+
+def get_uninvoiced_loads(limit=250):
+    """Returns loads identified in the source report as Venus Logistics."""
+    with get_conn() as conn, conn.cursor() as cur:
+        query = f'''
+            SELECT "{COL_LOAD_NUM}", "{COL_COMPANY}", "{COL_ORIGIN}", "{COL_DEST}",
+                   "{COL_SHIP_DATE}", "{COL_LINE_HAUL}", "Revenue"
+            FROM "{TABLE_NAME}"
+            WHERE lower(trim(COALESCE("{COL_COMPANY}", ''))) = 'venus logistics'
+            ORDER BY "{COL_SHIP_DATE}" DESC NULLS LAST, "{COL_LOAD_NUM}" DESC
+            LIMIT %s
+        '''
+        cur.execute(query, (limit,))
+        rows = cur.fetchall()
+    return [
+        {
+            "loadNumber": row[0], "company": row[1], "origin": row[2],
+            "destination": row[3], "shipDate": str(row[4]) if row[4] else None,
+            "lineHaul": to_number(row[5]), "revenue": to_number(row[6]),
+        }
+        for row in rows
+    ]
+
+
 def insert_new_shipment_records(records):
     if not records:
         return 0, 0

@@ -107,3 +107,30 @@ export type AllLaneLoadChangesResponse = {
   endDate: string;
   rows: AllLaneLoadChangeRow[];
 };
+
+export type UninvoicedLoad = {
+  loadNumber: number | null;
+  company: string;
+  origin: string | null;
+  destination: string | null;
+  shipDate: string | null;
+  lineHaul: number | null;
+  revenue: number | null;
+};
+
+export type UninvoicedLoadsResponse = {
+  company: string;
+  rows: UninvoicedLoad[];
+};
+
+export type Quote = {
+  id: number;
+  origin: string;
+  destination: string;
+  customer: string;
+  quotedRate: number;
+  quotedBy: string;
+  createdAt: string;
+};
+
+export type QuoteHistoryResponse = { rows: Quote[] };
