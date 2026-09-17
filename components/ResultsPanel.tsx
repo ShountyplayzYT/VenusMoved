@@ -16,6 +16,16 @@ function moneyPerMile(v: number | null | undefined) {
     : `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function label(value: string | null | undefined) {
+  return value ? value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : "—";
+}
+
+function rateTypeLabel(value: string | null | undefined) {
+  if (value === "SPOT") return "Broker Spot Rate";
+  if (value === "CONTRACT") return "Shipper Contract Rate";
+  return label(value);
+}
+
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -32,8 +42,7 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
           {money(datRate.perTripRateUsd)}
         </div>
         <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          Per trip · DAT RateView estimate · all-in with fuel
-          {datRate.rateType ? ` · ${datRate.rateType}` : ""}
+          Per trip · {rateTypeLabel(datRate.rateType)} · all-in with fuel
         </div>
         {datRate.perMileRateUsd != null && (
           <div className="text-textSecondary text-xs mt-1">
@@ -42,6 +51,18 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+        <div>
+          <span className="text-textSecondary">Time frame: </span>
+          {label(datRate.timeframe)}
+        </div>
+        <div>
+          <span className="text-textSecondary">Origin geography: </span>
+          {label(datRate.areaType)}
+        </div>
+        <div>
+          <span className="text-textSecondary">Destination geography: </span>
+          {label(datRate.destinationAreaType ?? datRate.areaType)}
+        </div>
         <div>
           <span className="text-textSecondary">Distance: </span>
           {datRate.mileage != null ? `${datRate.mileage} mi` : "—"}
@@ -55,6 +76,7 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
           {datRate.companies ?? "—"}
         </div>
       </div>
+      <p className="mt-4 text-textTertiary text-xs">Rate data provided by DAT RateView.</p>
     </section>
   );
 }

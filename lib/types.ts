@@ -29,6 +29,7 @@ export type DatRate = {
   rateStrength: number | null;
   timeframe: string | null;
   areaType: string | null;
+  destinationAreaType?: string | null;
   rateType: string | null;
 };
 

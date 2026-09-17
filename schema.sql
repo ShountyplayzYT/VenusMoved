@@ -56,3 +56,9 @@ CREATE TABLE IF NOT EXISTS quote_history (
 );
 
 ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL DEFAULT 'pending';
+
+CREATE TABLE IF NOT EXISTS dat_rate_cache (
+    cache_key TEXT PRIMARY KEY,
+    rate JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

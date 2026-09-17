@@ -1,4 +1,5 @@
 import os
+import json
 from contextlib import contextmanager
 
 import psycopg
@@ -190,6 +191,52 @@ def ensure_quote_schema():
         )
         cur.execute(
             "ALTER TABLE quote_history ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL DEFAULT 'pending'"
+        )
+        conn.commit()
+
+
+def ensure_dat_rate_cache_schema():
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dat_rate_cache (
+                cache_key TEXT PRIMARY KEY,
+                rate JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.commit()
+
+
+def get_cached_dat_rate(cache_key, ttl_seconds):
+    ensure_dat_rate_cache_schema()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT rate FROM dat_rate_cache
+            WHERE cache_key = %s
+              AND created_at > now() - (%s * interval '1 second')
+            """,
+            (cache_key, ttl_seconds),
+        )
+        row = cur.fetchone()
+    if not row:
+        return None
+    return json.loads(row[0]) if isinstance(row[0], str) else row[0]
+
+
+def set_cached_dat_rate(cache_key, rate):
+    ensure_dat_rate_cache_schema()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO dat_rate_cache (cache_key, rate, created_at)
+            VALUES (%s, %s::jsonb, now())
+            ON CONFLICT (cache_key) DO UPDATE
+                SET rate = EXCLUDED.rate, created_at = now()
+            """,
+            (cache_key, json.dumps(rate)),
         )
         conn.commit()
 

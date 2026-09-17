@@ -50,8 +50,10 @@ import os
 import threading
 import time
 import logging
+import json
 
 import requests
+from . import db
 
 logger = logging.getLogger("linehaul.dat")
 
@@ -297,6 +299,7 @@ def _extract_rate(entry):
     per_trip = rate.get("perTrip") or {}
     escalation = response.get("escalation") or {}
     origin_area = escalation.get("origin") or {}
+    destination_area = escalation.get("destination") or {}
 
     # DAT calculates the fuel surcharge as a separate component of the
     # rate (confirmed field names from DAT's OpenAPI spec:
@@ -339,6 +342,7 @@ def _extract_rate(entry):
         "rateStrength": rate.get("rateStrength"),
         "timeframe": escalation.get("timeframe"),
         "areaType": origin_area.get("type"),
+        "destinationAreaType": destination_area.get("type"),
         "rateType": response.get("rateType"),
     }
 
@@ -432,6 +436,16 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
 
     equipment = equipment or os.environ.get("DAT_DEFAULT_EQUIPMENT", "VAN")
     rate_type = rate_type or os.environ.get("DAT_DEFAULT_RATE_TYPE", "SPOT")
+    cache_key = json.dumps({"origin": origin, "destination": destination, "equipment": equipment, "rateType": rate_type}, sort_keys=True)
+    cache_ttl_seconds = int(os.environ.get("DAT_RATE_CACHE_TTL_SECONDS", "900"))
+    if cache_ttl_seconds > 0:
+        try:
+            cached = db.get_cached_dat_rate(cache_key, cache_ttl_seconds)
+            if cached is not None:
+                logger.info("DAT get_rate: serving cached rate for %s -> %s", origin, destination)
+                return cached
+        except Exception as e:
+            logger.warning("DAT get_rate: cache read failed; continuing with live request: %s", e)
     url = f"{_base_url()}{DAT_LOOKUPS_PATH}"
 
     for target_escalation in _escalation_ladder():
@@ -458,6 +472,11 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
 
         rate = _extract_rate(entries[0])
         if rate is not None:
+            if cache_ttl_seconds > 0:
+                try:
+                    db.set_cached_dat_rate(cache_key, rate)
+                except Exception as e:
+                    logger.warning("DAT get_rate: cache write failed: %s", e)
             return rate
         # _extract_rate already logged why (per-lane error or missing rate)
         # - fall through and try the next, looser escalation setting.
