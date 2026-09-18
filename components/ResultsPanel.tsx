@@ -33,7 +33,15 @@ function median(values: number[]): number | null {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate"]> }) {
+function DatRateCard({
+  datRate,
+  origin,
+  destination,
+}: {
+  datRate: NonNullable<LookupResponse["datRate"]>;
+  origin: string;
+  destination: string;
+}) {
   return (
     <section className="rounded-2xl border border-border bg-panel p-5 mb-4">
       <h2 className="font-display text-lg text-textPrimary mb-4">DAT RateView</h2>
@@ -54,18 +62,20 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
           </div>
         )}
       </div>
+      <div className="mb-4 grid gap-3 rounded-md border border-border bg-panel2 p-3 text-sm sm:grid-cols-2">
+        <div>
+          <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">Origin</div>
+          <div className="text-textPrimary">{origin}</div>
+        </div>
+        <div>
+          <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">Destination</div>
+          <div className="text-textPrimary">{destination}</div>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
         <div>
           <span className="text-textSecondary">Time frame: </span>
           {label(datRate.timeframe)}
-        </div>
-        <div>
-          <span className="text-textSecondary">Origin rate geography: </span>
-          {label(datRate.areaType)}
-        </div>
-        <div>
-          <span className="text-textSecondary">Destination rate geography: </span>
-          {label(datRate.destinationAreaType ?? datRate.areaType)}
         </div>
         <div>
           <span className="text-textSecondary">Distance: </span>
@@ -128,7 +138,7 @@ export default function ResultsPanel({
       </section>
       {/* Always show the DAT market estimate alongside our own history,
           even when we found an exact or state-level match. */}
-      {datRate ? <DatRateCard datRate={datRate} /> : (
+      {datRate ? <DatRateCard datRate={datRate} origin={datLane.origin} destination={datLane.destination} /> : (
         <section className="rounded-2xl border border-border bg-panel p-5 mb-4">
           <h2 className="font-display text-lg text-textPrimary mb-2">DAT RateView</h2>
           <p className="text-textSecondary text-sm">No DAT market rate is available for this lane.</p>
