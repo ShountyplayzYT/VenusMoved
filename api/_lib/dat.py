@@ -442,6 +442,9 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
         try:
             cached = db.get_cached_dat_rate(cache_key, cache_ttl_seconds)
             if cached is not None:
+                # Older cached responses may predate rateType being returned
+                # by DAT. The request's rate type is still authoritative.
+                cached.setdefault("rateType", rate_type)
                 logger.info("DAT get_rate: serving cached rate for %s -> %s", origin, destination)
                 return cached
         except Exception as e:
@@ -472,6 +475,9 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
 
         rate = _extract_rate(entries[0])
         if rate is not None:
+            # DAT normally echoes rateType in its response. Retain the type
+            # we asked for when that field is absent so the UI is never vague.
+            rate["rateType"] = rate.get("rateType") or rate_type
             if cache_ttl_seconds > 0:
                 try:
                     db.set_cached_dat_rate(cache_key, rate)

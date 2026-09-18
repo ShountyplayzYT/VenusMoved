@@ -42,7 +42,11 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
           {money(datRate.perTripRateUsd)}
         </div>
         <div className="text-textTertiary text-[0.64rem] uppercase tracking-wide">
-          Per trip · {rateTypeLabel(datRate.rateType)} · all-in with fuel
+          Per trip · all-in with fuel
+        </div>
+        <div className="mt-2 inline-flex rounded border border-teal/50 bg-teal/10 px-2 py-1 font-mono-brand text-xs font-semibold text-teal">
+          Rate type: {datRate.rateType ?? "—"}
+          {datRate.rateType ? ` · ${rateTypeLabel(datRate.rateType)}` : ""}
         </div>
         {datRate.perMileRateUsd != null && (
           <div className="text-textSecondary text-xs mt-1">
