@@ -60,11 +60,11 @@ function DatRateCard({ datRate }: { datRate: NonNullable<LookupResponse["datRate
           {label(datRate.timeframe)}
         </div>
         <div>
-          <span className="text-textSecondary">Origin geography: </span>
+          <span className="text-textSecondary">Origin rate geography: </span>
           {label(datRate.areaType)}
         </div>
         <div>
-          <span className="text-textSecondary">Destination geography: </span>
+          <span className="text-textSecondary">Destination rate geography: </span>
           {label(datRate.destinationAreaType ?? datRate.areaType)}
         </div>
         <div>

@@ -444,7 +444,8 @@ def get_rate(origin_text, destination_text, geo_lookup=None, equipment=None, rat
             if cached is not None:
                 # Older cached responses may predate rateType being returned
                 # by DAT. The request's rate type is still authoritative.
-                cached.setdefault("rateType", rate_type)
+                if not cached.get("rateType"):
+                    cached["rateType"] = rate_type
                 logger.info("DAT get_rate: serving cached rate for %s -> %s", origin, destination)
                 return cached
         except Exception as e:
